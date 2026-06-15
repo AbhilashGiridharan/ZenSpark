@@ -557,6 +557,156 @@ function buildClosingSlide(
   });
 }
 
+// ─── Capture decorative background HTML via html2canvas ──────────────────────
+async function captureBackground(html: string): Promise<string | null> {
+  try {
+    const html2canvas = (await import("html2canvas")).default;
+    const container = document.createElement("div");
+    container.style.cssText = [
+      "position:fixed", "top:-9999px", "left:-9999px",
+      "width:960px", "height:540px", "overflow:hidden", "z-index:-1",
+    ].join(";");
+    container.innerHTML = html;
+    document.body.appendChild(container);
+    try {
+      const canvas = await html2canvas(container, {
+        width: 960, height: 540, scale: 1,
+        useCORS: true, logging: false, backgroundColor: null,
+      });
+      return canvas.toDataURL("image/png");
+    } finally {
+      document.body.removeChild(container);
+    }
+  } catch {
+    return null;
+  }
+}
+
+// ─── Text-only overlay (used when background_html sets the visual layer) ──────
+// All text rendered as editable PPTX objects with white + drop-shadow for legibility
+function buildTextOverlay(slide_: PptxSlide, s: Slide) {
+  const T = "FFFFFF";   // primary text
+  const ST = "E8E8E8";  // secondary text
+  const SH = { type: "outer" as const, blur: 3, offset: 1, angle: 45, color: "000000", opacity: 0.6 };
+
+  switch (s.layout) {
+    case "title":
+      slide_.addText(s.title, {
+        x: 0.5, y: 0.6, w: 9.0, h: 3.2, fontSize: 40, bold: true,
+        color: T, fontFace: "Calibri", align: "center", valign: "middle", wrap: true, shadow: SH,
+      });
+      if (s.subtitle) slide_.addText(s.subtitle, {
+        x: 0.5, y: 4.1, w: 9.0, h: 1.8, fontSize: 20,
+        color: ST, fontFace: "Calibri", align: "center", wrap: true, shadow: SH,
+      });
+      break;
+
+    case "section_divider":
+      slide_.addText(s.title, {
+        x: 0.7, y: 1.6, w: 8.8, h: 3.0, fontSize: 44, bold: true,
+        color: T, fontFace: "Calibri", align: "left", valign: "middle", wrap: true, shadow: SH,
+      });
+      if (s.subtitle) slide_.addText(s.subtitle, {
+        x: 0.7, y: 4.7, w: 8.8, h: 1.0, fontSize: 20,
+        color: ST, fontFace: "Calibri", align: "left", shadow: SH,
+      });
+      break;
+
+    case "closing":
+      slide_.addText(s.title, {
+        x: 0.5, y: 0.4, w: 9.0, h: 2.2, fontSize: 38, bold: true,
+        color: T, fontFace: "Calibri", align: "center", valign: "middle", wrap: true, shadow: SH,
+      });
+      if (s.subtitle) slide_.addText(s.subtitle, {
+        x: 0.5, y: 2.8, w: 9.0, h: 1.4, fontSize: 22,
+        color: ST, fontFace: "Calibri", align: "center", wrap: true, shadow: SH,
+      });
+      (s.bullets ?? []).forEach((b, i) => slide_.addText(b, {
+        x: 1.5, y: 4.4 + i * 0.5, w: 7.0, h: 0.48, fontSize: 16,
+        color: ST, fontFace: "Calibri", align: "center", shadow: SH,
+      }));
+      break;
+
+    case "quote":
+      slide_.addText(s.quote ?? s.title, {
+        x: 0.7, y: 1.3, w: 8.6, h: 3.5, fontSize: 26, italic: true,
+        color: T, fontFace: "Georgia", align: "center", valign: "middle", wrap: true, shadow: SH,
+      });
+      if (s.attribution) slide_.addText("\u2014 " + s.attribution, {
+        x: 1.0, y: 5.2, w: 8.0, h: 0.55, fontSize: 16, bold: true,
+        color: ST, fontFace: "Calibri", align: "right", shadow: SH,
+      });
+      break;
+
+    case "stats": {
+      slide_.addText(s.title, {
+        x: 0.3, y: 0.1, w: 9.4, h: 0.68, fontSize: 22, bold: true,
+        color: T, fontFace: "Calibri", valign: "middle", shadow: SH,
+      });
+      const cards = s.stat_cards ?? [];
+      const n = Math.min(cards.length, 4);
+      const xW = n <= 1 ? [{ x: 2.5, w: 5.0 }]
+        : n === 2 ? [{ x: 0.5, w: 4.0 }, { x: 5.5, w: 4.0 }]
+        : n === 3 ? [{ x: 0.25, w: 3.0 }, { x: 3.5, w: 3.0 }, { x: 6.75, w: 3.0 }]
+        : [{ x: 0.35, w: 4.38 }, { x: 5.27, w: 4.38 }, { x: 0.35, w: 4.38 }, { x: 5.27, w: 4.38 }];
+      const yBase = n === 4 ? [1.0, 1.0, 4.0, 4.0] : [1.5, 1.5, 1.5];
+      cards.slice(0, n).forEach((card, i) => {
+        const { x, w } = xW[i];
+        const y = yBase[i] ?? 1.5;
+        if (card.icon) slide_.addText(card.icon, { x, y: y + 0.05, w, h: 0.65, fontSize: 30, align: "center", shadow: SH });
+        slide_.addText(card.value, { x, y: y + 0.8, w, h: 1.6, fontSize: 52, bold: true, color: T, fontFace: "Calibri", align: "center", valign: "middle", shadow: SH });
+        slide_.addText(card.label, { x, y: y + 2.5, w, h: 0.8, fontSize: 16, color: ST, fontFace: "Calibri", align: "center", wrap: true, shadow: SH });
+      });
+      break;
+    }
+
+    case "two_column":
+      slide_.addText(s.title, {
+        x: 0.3, y: 0.1, w: 9.4, h: 0.68, fontSize: 22, bold: true,
+        color: T, fontFace: "Calibri", valign: "middle", shadow: SH,
+      });
+      if (s.left_title) slide_.addText(s.left_title, { x: 0.4, y: 0.88, w: 4.3, h: 0.45, fontSize: 15, bold: true, color: T, fontFace: "Calibri", shadow: SH });
+      if (s.right_title) slide_.addText(s.right_title, { x: 5.3, y: 0.88, w: 4.3, h: 0.45, fontSize: 15, bold: true, color: T, fontFace: "Calibri", shadow: SH });
+      (s.left_column ?? []).forEach((b, i) => slide_.addText(b, { x: 0.4, y: 1.4 + i * 0.62, w: 4.4, h: 0.58, fontSize: 15, color: ST, fontFace: "Calibri", valign: "middle", shadow: SH }));
+      (s.right_column ?? []).forEach((b, i) => slide_.addText(b, { x: 5.3, y: 1.4 + i * 0.62, w: 4.4, h: 0.58, fontSize: 15, color: ST, fontFace: "Calibri", valign: "middle", shadow: SH }));
+      break;
+
+    case "table":
+      slide_.addText(s.title, {
+        x: 0.3, y: 0.1, w: 9.4, h: 0.68, fontSize: 22, bold: true,
+        color: T, fontFace: "Calibri", valign: "middle", shadow: SH,
+      });
+      if (s.table) {
+        const hRow = s.table.headers.map((h) => ({
+          text: h,
+          options: { bold: true, color: T, fill: { color: "00000060" }, fontFace: "Calibri", fontSize: 14, align: "center" as const },
+        }));
+        const dRows = s.table.rows.map((row) =>
+          row.map((cell) => ({ text: cell, options: { fill: { color: "FFFFFF18" }, color: T, fontFace: "Calibri", fontSize: 13 } }))
+        );
+        slide_.addTable([hRow, ...dRows], { x: 0.4, y: 0.88, w: 9.2, border: { type: "solid" as const, color: "FFFFFF50", pt: 1 }, rowH: 0.45 });
+      }
+      break;
+
+    default: { // bullets, agenda, image_caption
+      slide_.addText(s.title, {
+        x: 0.3, y: 0.1, w: 9.4, h: 0.68, fontSize: 22, bold: true,
+        color: T, fontFace: "Calibri", valign: "middle", shadow: SH,
+      });
+      const bullets = s.bullets ?? [];
+      const rowH = Math.min(0.82, 6.1 / Math.max(bullets.length, 1));
+      bullets.forEach((b, i) => {
+        slide_.addText(b, {
+          x: 0.55, y: 0.88 + i * rowH, w: 9.1, h: rowH,
+          fontSize: rowH >= 0.7 ? 17 : 15,
+          color: ST, fontFace: "Calibri", valign: "middle", shadow: SH,
+        });
+      });
+      break;
+    }
+  }
+}
+
 // ─── Main PPTX builder ────────────────────────────────────────────────────────
 export async function buildAndDownloadPptx(
   doc: DocumentOutput,
@@ -573,21 +723,41 @@ export async function buildAndDownloadPptx(
 
   for (const s of slides) {
     const slide_ = prs.addSlide();
-    slide_.background = { color: tc.background };
 
-    // Always use editable PptxGenJS template rendering (html field is for browser preview only)
-    switch (s.layout) {
-      case "title":       buildTitleSlide(prs, slide_, s, tc); break;
-      case "bullets":     buildBulletsSlide(slide_, s, tc); break;
-      case "two_column":  buildTwoColumnSlide(slide_, s, tc); break;
-      case "image_caption": buildImageCaptionSlide(slide_, s, tc, images); break;
-      case "table":       buildTableSlide(slide_, s, tc); break;
-      case "quote":       buildQuoteSlide(slide_, s, tc); break;
-      case "section_divider": buildSectionDividerSlide(slide_, s, tc); break;
-      case "agenda":      buildAgendaSlide(slide_, s, tc); break;
-      case "stats":       buildStatsSlide(slide_, s, tc); break;
-      case "closing":     buildClosingSlide(slide_, s, tc); break;
-      default:            buildBulletsSlide(slide_, s, tc);
+    // Hybrid approach: capture LLM decorative background → set as slide bg image,
+    // then overlay editable text objects on top (fully editable in PowerPoint).
+    // Falls back to full PptxGenJS template rendering if no background_html.
+    let usedCustomBg = false;
+    if (s.background_html) {
+      const bgPng = await captureBackground(s.background_html);
+      if (bgPng) {
+        slide_.background = { data: bgPng };
+        usedCustomBg = true;
+      }
+    }
+
+    if (!usedCustomBg) {
+      slide_.background = { color: tc.background };
+    }
+
+    if (usedCustomBg) {
+      // Text-only editable layer over custom background
+      buildTextOverlay(slide_, s);
+    } else {
+      // Full PptxGenJS shape + text templates (when no custom bg)
+      switch (s.layout) {
+        case "title":       buildTitleSlide(prs, slide_, s, tc); break;
+        case "bullets":     buildBulletsSlide(slide_, s, tc); break;
+        case "two_column":  buildTwoColumnSlide(slide_, s, tc); break;
+        case "image_caption": buildImageCaptionSlide(slide_, s, tc, images); break;
+        case "table":       buildTableSlide(slide_, s, tc); break;
+        case "quote":       buildQuoteSlide(slide_, s, tc); break;
+        case "section_divider": buildSectionDividerSlide(slide_, s, tc); break;
+        case "agenda":      buildAgendaSlide(slide_, s, tc); break;
+        case "stats":       buildStatsSlide(slide_, s, tc); break;
+        case "closing":     buildClosingSlide(slide_, s, tc); break;
+        default:            buildBulletsSlide(slide_, s, tc);
+      }
     }
 
     if (s.speaker_notes) {

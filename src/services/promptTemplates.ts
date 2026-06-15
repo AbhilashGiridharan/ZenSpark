@@ -4,15 +4,19 @@ import type { UseCasePreset, OutputFormat, ThemeOption } from "../types/document
 const JSON_SCHEMA = `
 IMPORTANT: Return ONLY a raw JSON object. Do NOT use markdown code fences. Do NOT include any explanation. Start with { and end with }.
 
-For each slide you MUST generate an "html" field: a complete self-contained HTML string that visually renders that slide at exactly 960×540px.
-HTML rules:
-- Use only inline styles (no external CSS, no <link>, no <script>)
-- Use web-safe or Google Fonts (@import in a <style> tag at the top is OK)
-- The outermost element must be: <div style="width:960px;height:540px;overflow:hidden;position:relative;font-family:...">
-- Make it visually rich: use gradients, colored shapes, large bold numbers, icons (use Unicode/emoji), accent bars
-- Choose a modern color palette that matches the theme field
-- NO images that reference external URLs — use CSS gradients and shapes instead
-- Keep all text readable (sufficient contrast)
+For each slide you MUST generate TWO HTML fields:
+
+1. "html" — the FULL visual slide at exactly 960×540px (for browser preview). Include all text, shapes, styling.
+   Rules: inline styles only, no external resources, outermost div must be width:960px;height:540px;overflow:hidden;position:relative
+   Make it visually rich: gradients, colored shapes, icons (Unicode/emoji), accent bars, Google Fonts via @import OK
+
+2. "background_html" — DECORATIVE BACKGROUND ONLY at 960×540px (used as PPTX slide background image).
+   Rules: EXACTLY the same as html EXCEPT — remove ALL readable text content from the slide.
+   Include ONLY: color fills/gradients, geometric shapes (rects, circles, triangles via CSS), accent stripes,
+   glass-morphism panels, large decorative emoji/icons that are purely visual (not content-specific),
+   subtle patterns, watermark-style large shapes.
+   Do NOT include: titles, bullet text, numbers from stats, table content, any words.
+   Why: editable text will be placed on top as real PowerPoint text objects — we need the bg to be text-free.
 
 Schema:
 {
@@ -36,7 +40,8 @@ Schema:
       "quote": "string (optional)",
       "attribution": "string (optional)",
       "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (optional),
-      "html": "string (REQUIRED — complete self-contained 960×540px HTML for this slide)",
+      "html": "string (REQUIRED — full visual 960×540px HTML, all text and design included, for browser preview)",
+      "background_html": "string (REQUIRED — decorative-only 960×540px HTML, NO readable text, for PPTX background)",
       "speaker_notes": "string (required)"
     }
   ],
@@ -56,7 +61,7 @@ Layout guidance:
 - Use "section_divider" between major topics — full-bleed colored background, large title
 - Use "quote" for impactful quotes — oversized quotation mark, centered italic text
 - Prefix ALL bullet text with a contextually relevant emoji (📊 📈 ✅ 🎯 ⚡ 🔒 💡 🚀 📋 🤝 🏆)
-- Every slide MUST have html and speaker_notes
+- Every slide MUST have html, background_html, and speaker_notes
 - Include "slides" for document_type "pptx" or "both"
 - Include "sections" for document_type "docx" or "both"
 `;

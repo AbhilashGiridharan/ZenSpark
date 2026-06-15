@@ -60,7 +60,8 @@ export interface Slide {
   attribution?: string;
   image_index?: number;
   stat_cards?: StatCard[];
-  html?: string;           // LLM-generated HTML for full visual rendering (960×540px, inline styles)
+  html?: string;           // LLM-generated HTML — full visual (browser preview only)
+  background_html?: string; // LLM-generated HTML — decorative background only (no text), used as PPTX bg image
   speaker_notes: string;
 }
 
