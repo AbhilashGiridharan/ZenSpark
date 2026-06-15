@@ -14,8 +14,8 @@ const API_VERSIONS = [
 const DEFAULT_CONFIG: AzureConfig = {
   endpoint: "",
   apiKey: "",
-  deploymentName: "",
-  apiVersion: "2024-12-01-preview",
+  deploymentName: "claude-opus-4-6-demo",
+  apiVersion: "",
   maxTokens: 4096,
   temperature: 0.7,
   visionDeploymentName: "",
@@ -67,7 +67,7 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
 
   // The exact URL that will be called
   const previewUrl = form.endpoint && form.deploymentName
-    ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions?api-version=${form.apiVersion}`
+    ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${form.apiVersion ? `?api-version=${form.apiVersion}` : ""}`
     : "";
 
   const copyUrl = () => {
@@ -162,12 +162,13 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
                 />
               </Field>
 
-              <Field label="API Version">
+              <Field label="API Version (optional)" hint="Leave blank if not required by your endpoint">
                 <select
-                  value={form.apiVersion}
+                  value={form.apiVersion ?? ""}
                   onChange={(e) => set("apiVersion", e.target.value)}
                   className={INPUT_CLS}
                 >
+                  <option value="">— None —</option>
                   {API_VERSIONS.map((v) => (
                     <option key={v} value={v}>{v}</option>
                   ))}

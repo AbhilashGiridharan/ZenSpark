@@ -6,7 +6,7 @@ export function createAzureClient(config: AzureConfig): OpenAI {
   return new OpenAI({
     apiKey: config.apiKey,
     baseURL: `${config.endpoint.replace(/\/$/, "")}/openai/deployments/${config.deploymentName}`,
-    defaultQuery: { "api-version": config.apiVersion },
+    ...(config.apiVersion ? { defaultQuery: { "api-version": config.apiVersion } } : {}),
     defaultHeaders: { "api-key": config.apiKey },
     dangerouslyAllowBrowser: true,
   });

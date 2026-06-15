@@ -3,7 +3,7 @@ export interface AzureConfig {
   endpoint: string;
   apiKey: string;
   deploymentName: string;
-  apiVersion: string;
+  apiVersion?: string;
   maxTokens: number;
   temperature: number;
   visionDeploymentName: string;
