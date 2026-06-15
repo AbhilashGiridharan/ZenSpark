@@ -252,19 +252,30 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
 
 // ─── JSON parser with truncation recovery ───────────────────────────────────
 export function parseDocumentJSON(raw: string): DocumentOutput {
-  let cleaned = raw
-    .replace(/^```json\s*/i, "")
-    .replace(/^```\s*/i, "")
-    .replace(/```\s*$/i, "")
-    .trim();
+  // Aggressively extract just the JSON object — find first { and last }
+  // This handles: ```json\n{...}\n```, extra preamble text, trailing commentary
+  let cleaned = raw;
+
+  // Strip markdown code fences (any variant: ```json, ```JSON, ``` etc.)
+  cleaned = cleaned.replace(/^[\s\S]*?```(?:json)?\s*/i, "").replace(/```[\s\S]*$/i, "");
+
+  // Find the outermost JSON object boundaries
+  const firstBrace = cleaned.indexOf("{");
+  const lastBrace = cleaned.lastIndexOf("}");
+  if (firstBrace !== -1 && lastBrace > firstBrace) {
+    cleaned = cleaned.slice(firstBrace, lastBrace + 1);
+  } else if (firstBrace !== -1) {
+    // Truncated — no closing brace, take everything from first {
+    cleaned = cleaned.slice(firstBrace);
+  }
+
+  cleaned = cleaned.trim();
 
   // First try parsing as-is
   try {
     return validateAndNormalize(JSON.parse(cleaned) as DocumentOutput);
   } catch (firstErr) {
-    // If truncated mid-JSON, attempt recovery:
-    // 1. Close any open string (unterminated string is the most common case)
-    // 2. Close open arrays and objects from the inside out
+    // Attempt structural recovery for truncated responses
     const recovered = attemptRecovery(cleaned);
     try {
       return validateAndNormalize(JSON.parse(recovered) as DocumentOutput);

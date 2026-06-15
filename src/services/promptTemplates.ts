@@ -2,7 +2,8 @@ import type { UseCasePreset, OutputFormat, ThemeOption } from "../types/document
 
 // ─── JSON schema embedded in every system prompt ─────────────────────────────
 const JSON_SCHEMA = `
-Return ONLY valid JSON matching this schema (no markdown, no code fences):
+IMPORTANT: Return ONLY a raw JSON object. Do NOT use markdown code fences (\`\`\`). Do NOT include any explanation. Start with { and end with }.
+Schema:
 {
   "title": "string",
   "document_type": "pptx" | "docx" | "both",
@@ -135,6 +136,7 @@ Read the user's goal and any uploaded files carefully. Infer the audience, purpo
 Generate a comprehensive, well-structured presentation or document that best serves the user's stated intent.
 Choose the most appropriate layouts, number of slides, and level of detail based on what you read.
 Tone: professional, clear, and tailored to the inferred audience.
+CRITICAL: Your entire response must be a single raw JSON object. Do NOT wrap it in markdown code fences. Do NOT include any text before or after the JSON. Start your response with { and end with }.
 ${JSON_SCHEMA}`,
 };
 
