@@ -1,0 +1,14 @@
+/*
+  GitHub Pages security headers (_headers file in /public)
+  These are processed by some CDN/hosting providers.
+  For GitHub Pages, consider using a meta CSP tag in index.html as fallback.
+*/
+
+/*
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+X-XSS-Protection: 1; mode=block
+Referrer-Policy: strict-origin-when-cross-origin
+Permissions-Policy: camera=(), microphone=(), geolocation=()
+Content-Security-Policy: default-src 'self'; connect-src https://*.openai.azure.com https://cdnjs.cloudflare.com; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob:; font-src 'self'; worker-src blob:;
+*/
