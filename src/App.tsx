@@ -23,7 +23,6 @@ import {
 import {
   buildUserPrompt,
   getSystemPrompt,
-  DEFAULT_SLIDE_COUNT,
 } from "./services/promptTemplates";
 
 const STORAGE_KEY = "ai_doc_azure_config";
@@ -51,7 +50,6 @@ export default function App() {
   const [customPrompt, setCustomPrompt] = useState("");
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("pptx");
   const [theme, setTheme] = useState<ThemeOption>("corporate_blue");
-  const [slideCount, setSlideCount] = useState(DEFAULT_SLIDE_COUNT);
 
   // ── Generation state ───────────────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
@@ -116,7 +114,6 @@ export default function App() {
       userGoal,
       fileTexts,
       "",
-      slideCount,
       outputFormat,
       theme,
       inputImages.length
@@ -231,6 +228,13 @@ export default function App() {
         </button>
       </header>
 
+      {/* Progress bar — visible whenever generating or refining */}
+      {(isGenerating || isRefining) && (
+        <div className="h-0.5 w-full flex-shrink-0 overflow-hidden bg-gray-800">
+          <div className="h-full animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+        </div>
+      )}
+
       {/* Error banner */}
       {error && (
         <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
@@ -286,12 +290,10 @@ export default function App() {
               images={inputImages}
               outputFormat={outputFormat}
               theme={theme}
-              slideCount={slideCount}
               useCase={useCase}
               tokenUsage={tokenUsage}
               onOutputFormatChange={setOutputFormat}
               onThemeChange={setTheme}
-              onSlideCountChange={setSlideCount}
               onUseCaseChange={setUseCase}
               onGenerate={handleGenerate}
               isGenerating={isGenerating}

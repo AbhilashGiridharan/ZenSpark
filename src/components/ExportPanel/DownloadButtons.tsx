@@ -11,7 +11,6 @@ import type {
 import {
   OUTPUT_FORMAT_LABELS,
   THEME_LABELS,
-  SLIDE_COUNT_OPTIONS,
   USE_CASE_LABELS,
 } from "../../services/promptTemplates";
 import { buildAndDownloadPptx } from "../../services/pptxBuilder";
@@ -22,12 +21,10 @@ interface Props {
   images: InputImage[];
   outputFormat: OutputFormat;
   theme: ThemeOption;
-  slideCount: number;
   useCase: UseCasePreset;
   tokenUsage: TokenUsage | null;
   onOutputFormatChange: (f: OutputFormat) => void;
   onThemeChange: (t: ThemeOption) => void;
-  onSlideCountChange: (n: number) => void;
   onUseCaseChange: (uc: UseCasePreset) => void;
   onGenerate: () => void;
   isGenerating: boolean;
@@ -40,12 +37,10 @@ export default function DownloadButtons({
   images,
   outputFormat,
   theme,
-  slideCount,
   useCase,
   tokenUsage,
   onOutputFormatChange,
   onThemeChange,
-  onSlideCountChange,
   onUseCaseChange,
   onGenerate,
   isGenerating,
@@ -145,25 +140,6 @@ export default function DownloadButtons({
             <option key={t} value={t}>{THEME_LABELS[t]}</option>
           ))}
         </select>
-      </Section>
-
-      {/* Slide count */}
-      <Section title="Target Slide Count">
-        <div className="flex flex-wrap gap-1.5">
-          {SLIDE_COUNT_OPTIONS.map((n) => (
-            <button
-              key={n}
-              onClick={() => onSlideCountChange(n)}
-              className={`rounded px-2.5 py-1 text-xs transition-colors ${
-                slideCount === n
-                  ? "bg-blue-600 text-white"
-                  : "border border-gray-700 text-gray-400 hover:border-gray-500"
-              }`}
-            >
-              {n}
-            </button>
-          ))}
-        </div>
       </Section>
 
       {/* Generate button */}

@@ -42,4 +42,10 @@
     0%, 100% { opacity: 1; }
     50% { opacity: 0; }
   }
+
+  /* Progress bar shimmer */
+  @keyframes shimmer {
+    0%   { transform: translateX(-100%); }
+    100% { transform: translateX(200%); }
+  }
 }

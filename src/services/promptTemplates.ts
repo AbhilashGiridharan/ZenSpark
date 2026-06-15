@@ -164,7 +164,6 @@ export function buildUserPrompt(
   goal: string,
   fileTexts: { name: string; text: string }[],
   pastedText: string,
-  slideCount: number,
   outputFormat: OutputFormat,
   theme: ThemeOption,
   imageCount: number,
@@ -179,7 +178,13 @@ export function buildUserPrompt(
   lines.push(`## Output Settings`);
   lines.push(`- Document type: ${outputFormat}`);
   lines.push(`- Theme: ${theme}`);
-  lines.push(`- Target slide count: ${slideCount} slides`);
+  // Slide count: let the LLM decide based on content unless the user stated one explicitly
+  const mentionedCount = goal ? goal.match(/(\d+)\s*slide/i) : null;
+  if (mentionedCount) {
+    lines.push(`- Target slide count: ${mentionedCount[1]} slides (as requested)`);
+  } else {
+    lines.push(`- Slide count: choose the most appropriate number based on content complexity (typical range 8-20, do not pad with filler slides)`);
+  }
   if (imageCount > 0) {
     lines.push(`- Images provided: ${imageCount} screenshot(s) available (use image_index 0-${imageCount - 1} to embed them)`);
   }
