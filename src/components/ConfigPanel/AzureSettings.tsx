@@ -65,13 +65,22 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
     setTestStatus("idle");
   };
 
-  const isAzureOpenAI = form.endpoint.toLowerCase().includes(".openai.azure.com");
+  const isAzureOpenAI = form.endpoint.toLowerCase().includes(".openai.azure.com") ||
+                        form.endpoint.toLowerCase().includes("cognitiveservices.azure.com");
+  const isServicesEndpoint = form.endpoint.toLowerCase().includes("services.ai.azure.com");
+  const isClaudeDeploy = form.deploymentName.toLowerCase().startsWith("claude-");
 
-  // The exact URL that will be called (reflects auto-detected mode)
+  const endpointMode = isAzureOpenAI ? "Azure OpenAI Service"
+    : isServicesEndpoint && isClaudeDeploy ? "Azure AI Foundry — Anthropic Messages API"
+    : isServicesEndpoint ? "Azure AI Foundry — Chat Completions"
+    : form.endpoint ? "Azure AI Foundry (Serverless)"
+    : "";
   const previewUrl = form.endpoint && form.deploymentName
     ? isAzureOpenAI
       ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${form.apiVersion ? `?api-version=${form.apiVersion}` : ""}`
-      : `${form.endpoint.replace(/\/$/, "")}/v1/chat/completions  (model: ${form.deploymentName})`
+      : isServicesEndpoint && isClaudeDeploy
+        ? `${form.endpoint.replace(/\/+$/, "")}/anthropic/v1/messages  (x-api-key + anthropic-version: 2023-06-01)`
+        : `${form.endpoint.replace(/\/$/, "")}/v1/chat/completions  (model: ${form.deploymentName})`
     : "";
 
   const copyUrl = () => {
@@ -134,16 +143,14 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
           <div className="space-y-4 px-6 py-5">
 
             {/* Auto-detected mode badge */}
-            {form.endpoint && (
+            {endpointMode && (
               <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
                 isAzureOpenAI
                   ? "border-blue-800 bg-blue-950/30 text-blue-300"
                   : "border-purple-800 bg-purple-950/30 text-purple-300"
               }`}>
-                <span className="font-medium">
-                  {isAzureOpenAI ? "Azure OpenAI Service" : "Azure AI Foundry (Serverless)"}
-                </span>
-                <span className="text-gray-500">— auto-detected from endpoint</span>
+                <span className="font-medium">{endpointMode}</span>
+                <span className="text-gray-500">— auto-detected</span>
               </div>
             )}
 
