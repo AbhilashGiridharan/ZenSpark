@@ -113,7 +113,7 @@ export default function App() {
 
     const fileTexts = inputFiles.map((f) => ({
       name: f.name,
-      content: f.text,
+      content: f.extractedText,
     }));
 
     const userPrompt = buildUserPrompt(
@@ -290,49 +290,54 @@ export default function App() {
             hasDoc={!!generatedDoc}
             files={inputFiles}
             images={inputImages}
+            useCase={useCase}
+            outputFormat={outputFormat}
+            theme={theme}
             onInputChange={setChatInput}
             onSend={handleSend}
             onAddFiles={handleAddFiles}
             onRemoveFile={handleRemoveFile}
             onAddImage={handleAddImage}
             onRemoveImage={handleRemoveImage}
+            onUseCaseChange={setUseCase}
+            onOutputFormatChange={setOutputFormat}
+            onThemeChange={setTheme}
           />
         </main>
 
-        {/* ── RIGHT: Slide Preview + Export ────────────────────── */}
-        <aside className="flex w-72 flex-shrink-0 flex-col overflow-hidden border-l border-gray-800">
-          {/* Slide outline — top 55% */}
-          <div className="flex flex-col overflow-hidden border-b border-gray-800 px-3 py-3" style={{ flex: "0 0 55%" }}>
-            <p className="mb-2 flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500">
-              Preview
-            </p>
-            <div className="flex-1 overflow-y-auto">
-              <SlideOutline
-                doc={generatedDoc}
-                isGenerating={isGenerating}
-                streamingText={streamingText}
-              />
-            </div>
+        {/* ── RIGHT: Slide Preview + Downloads ──────────────────── */}
+        <aside className="flex w-[420px] flex-shrink-0 flex-col overflow-hidden border-l border-gray-800">
+          {/* Header */}
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Slide Preview</p>
+            {generatedDoc && (
+              <span className="rounded-full bg-blue-900/40 px-2 py-0.5 text-xs text-blue-400">
+                {(generatedDoc.slides ?? generatedDoc.sections ?? []).length}{" "}
+                {generatedDoc.document_type === "pptx" ? "slides" : "sections"}
+              </span>
+            )}
           </div>
 
-          {/* Export settings — bottom 45% */}
-          <div className="flex-1 overflow-y-auto px-3 py-3">
-            <DownloadButtons
+          {/* Slide outline — scrollable, takes available space */}
+          <div className="flex-1 overflow-y-auto px-4 py-3">
+            <SlideOutline
               doc={generatedDoc}
-              images={inputImages}
-              outputFormat={outputFormat}
-              theme={theme}
-              useCase={useCase}
-              tokenUsage={tokenUsage}
-              onOutputFormatChange={setOutputFormat}
-              onThemeChange={setTheme}
-              onUseCaseChange={setUseCase}
-              onGenerate={handleGenerate}
               isGenerating={isGenerating}
-              customPrompt={customPrompt}
-              onCustomPromptChange={setCustomPrompt}
+              streamingText={streamingText}
             />
           </div>
+
+          {/* Download section — pinned at bottom */}
+          {generatedDoc && (
+            <div className="flex-shrink-0 border-t border-gray-800 px-4 py-3">
+              <DownloadButtons
+                doc={generatedDoc}
+                images={inputImages}
+                outputFormat={outputFormat}
+                tokenUsage={tokenUsage}
+              />
+            </div>
+          )}
         </aside>
       </div>
 
@@ -346,17 +351,6 @@ export default function App() {
           }}
         />
       )}
-    </div>
-  );
-}
-
-function Section({ title, children }: { title: string; children: React.ReactNode }) {
-  return (
-    <div>
-      <p className="mb-2 text-xs font-semibold uppercase tracking-wider text-gray-500">
-        {title}
-      </p>
-      {children}
     </div>
   );
 }

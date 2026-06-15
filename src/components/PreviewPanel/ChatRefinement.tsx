@@ -10,13 +10,14 @@ import {
   File as FileIcon,
   Sparkles,
 } from "lucide-react";
-import type { ChatMessage, InputFile, InputImage } from "../../types/document";
+import type { ChatMessage, InputFile, InputImage, OutputFormat, ThemeOption, UseCasePreset } from "../../types/document";
 import {
   fileToInputFile,
   fileToInputImage,
   clipboardItemToInputImage,
   formatFileSize,
 } from "../../services/fileExtractor";
+import { OUTPUT_FORMAT_LABELS, THEME_LABELS, USE_CASE_LABELS } from "../../services/promptTemplates";
 
 const DOC_ACCEPT = ".pdf,.docx,.txt,.md,.csv,.html,.htm";
 const IMG_ACCEPT = "image/*";
@@ -29,12 +30,18 @@ interface Props {
   hasDoc: boolean;
   files: InputFile[];
   images: InputImage[];
+  useCase: UseCasePreset;
+  outputFormat: OutputFormat;
+  theme: ThemeOption;
   onInputChange: (v: string) => void;
   onSend: () => void;
   onAddFiles: (files: InputFile[]) => void;
   onRemoveFile: (id: string) => void;
   onAddImage: (img: InputImage) => void;
   onRemoveImage: (id: string) => void;
+  onUseCaseChange: (v: UseCasePreset) => void;
+  onOutputFormatChange: (v: OutputFormat) => void;
+  onThemeChange: (v: ThemeOption) => void;
 }
 
 function fileTypeIcon(type: string) {
@@ -53,12 +60,18 @@ export default function ChatRefinement({
   hasDoc,
   files,
   images,
+  useCase,
+  outputFormat,
+  theme,
   onInputChange,
   onSend,
   onAddFiles,
   onRemoveFile,
   onAddImage,
   onRemoveImage,
+  onUseCaseChange,
+  onOutputFormatChange,
+  onThemeChange,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -215,6 +228,38 @@ export default function ChatRefinement({
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
       >
+        {/* Settings toolbar — shown until a doc exists */}
+        {!hasDoc && (
+          <div className="mb-3 flex flex-wrap items-center gap-2">
+            <select
+              value={useCase}
+              onChange={(e) => onUseCaseChange(e.target.value as UseCasePreset)}
+              className="rounded-lg border border-gray-700 bg-gray-800/60 px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+            >
+              {(Object.keys(USE_CASE_LABELS) as UseCasePreset[]).map((k) => (
+                <option key={k} value={k}>{USE_CASE_LABELS[k]}</option>
+              ))}
+            </select>
+            <select
+              value={outputFormat}
+              onChange={(e) => onOutputFormatChange(e.target.value as OutputFormat)}
+              className="rounded-lg border border-gray-700 bg-gray-800/60 px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+            >
+              {(Object.keys(OUTPUT_FORMAT_LABELS) as OutputFormat[]).map((f) => (
+                <option key={f} value={f}>{OUTPUT_FORMAT_LABELS[f]}</option>
+              ))}
+            </select>
+            <select
+              value={theme}
+              onChange={(e) => onThemeChange(e.target.value as ThemeOption)}
+              className="rounded-lg border border-gray-700 bg-gray-800/60 px-2.5 py-1.5 text-xs text-gray-300 focus:border-blue-500 focus:outline-none"
+            >
+              {(Object.keys(THEME_LABELS) as ThemeOption[]).map((t) => (
+                <option key={t} value={t}>{THEME_LABELS[t]}</option>
+              ))}
+            </select>
+          </div>
+        )}
         {/* Attached document chips */}
         {files.length > 0 && (
           <div className="mb-2 flex flex-wrap gap-1.5">

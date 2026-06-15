@@ -169,7 +169,7 @@ export function getSystemPrompt(useCase: UseCasePreset): string {
 
 export function buildUserPrompt(
   goal: string,
-  fileTexts: { name: string; text: string }[],
+  fileTexts: { name: string; content: string }[],
   pastedText: string,
   outputFormat: OutputFormat,
   theme: ThemeOption,
@@ -203,10 +203,10 @@ export function buildUserPrompt(
     lines.push("");
   }
 
-  for (const { name, text } of fileTexts) {
-    if (text.trim()) {
+  for (const { name, content } of fileTexts) {
+    if (content.trim()) {
       lines.push(`## File: ${name}`);
-      lines.push(text.trim().slice(0, 8000)); // cap per-file context
+      lines.push(content.trim().slice(0, 40000)); // ~30k tokens per file, fits Claude's 200k context
       lines.push("");
     }
   }
