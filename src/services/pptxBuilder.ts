@@ -831,9 +831,17 @@ async function captureSlideHTML(html: string): Promise<string | null> {
     container.innerHTML = `<div style="width:960px;height:540px;overflow:hidden;position:relative;">${sanitizeBgHTML(html)}</div>`;
     document.body.appendChild(container);
     try {
+      // Wait for all web fonts (Google Fonts etc.) to finish loading before
+      // capturing — without this, html2canvas falls back to a system font with
+      // different metrics and words run together or overlap.
+      await document.fonts.ready;
+      // One rAF to let the browser finish layout after font swap
+      await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+
       const canvas = await html2canvas(container, {
         width: 960, height: 540, scale: 2,
         useCORS: true, logging: false, backgroundColor: "#ffffff",
+        windowWidth: 960, windowHeight: 540,
       });
       return canvas.toDataURL("image/png");
     } finally {
