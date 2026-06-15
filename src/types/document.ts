@@ -60,6 +60,7 @@ export interface Slide {
   attribution?: string;
   image_index?: number;
   stat_cards?: StatCard[];
+  html?: string;           // LLM-generated HTML for full visual rendering (960×540px, inline styles)
   speaker_notes: string;
 }
 

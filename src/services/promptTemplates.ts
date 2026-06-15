@@ -2,7 +2,18 @@ import type { UseCasePreset, OutputFormat, ThemeOption } from "../types/document
 
 // ─── JSON schema embedded in every system prompt ─────────────────────────────
 const JSON_SCHEMA = `
-IMPORTANT: Return ONLY a raw JSON object. Do NOT use markdown code fences (\`\`\`). Do NOT include any explanation. Start with { and end with }.
+IMPORTANT: Return ONLY a raw JSON object. Do NOT use markdown code fences. Do NOT include any explanation. Start with { and end with }.
+
+For each slide you MUST generate an "html" field: a complete self-contained HTML string that visually renders that slide at exactly 960×540px.
+HTML rules:
+- Use only inline styles (no external CSS, no <link>, no <script>)
+- Use web-safe or Google Fonts (@import in a <style> tag at the top is OK)
+- The outermost element must be: <div style="width:960px;height:540px;overflow:hidden;position:relative;font-family:...">
+- Make it visually rich: use gradients, colored shapes, large bold numbers, icons (use Unicode/emoji), accent bars
+- Choose a modern color palette that matches the theme field
+- NO images that reference external URLs — use CSS gradients and shapes instead
+- Keep all text readable (sufficient contrast)
+
 Schema:
 {
   "title": "string",
@@ -16,17 +27,17 @@ Schema:
       "layout": "title"|"bullets"|"two_column"|"image_caption"|"table"|"quote"|"section_divider"|"agenda"|"stats"|"closing",
       "title": "string",
       "subtitle": "string (optional)",
-      "bullets": ["string"] (optional — for bullets/agenda layouts; PREFIX each bullet with a relevant emoji icon e.g. "📊 Key metrics…", "✅ Completed…", "⚡ Fast…", "🎯 Goal…"),
+      "bullets": ["string"] (optional — PREFIX each bullet with a relevant emoji icon),
       "left_title": "string (optional)",
-      "left_column": ["string"] (optional — for two_column layout; prefix items with emoji icons),
+      "left_column": ["string"] (optional),
       "right_title": "string (optional)",
-      "right_column": ["string"] (optional — for two_column layout; prefix items with emoji icons),
+      "right_column": ["string"] (optional),
       "table": { "headers": ["string"], "rows": [["string"]] } (optional),
       "quote": "string (optional)",
       "attribution": "string (optional)",
-      "image_index": number (optional — 0-based index into user images),
-      "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji, optional)" }] (optional — for stats layout; value e.g. "94%", "$2.4M", "3x faster"),
-      "speaker_notes": "string (required for every slide)"
+      "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (optional),
+      "html": "string (REQUIRED — complete self-contained 960×540px HTML for this slide)",
+      "speaker_notes": "string (required)"
     }
   ],
   "sections": [
@@ -40,16 +51,14 @@ Schema:
   ]
 }
 Layout guidance:
-- Use "stats" layout when presenting 2-4 key metrics/KPIs (e.g. ROI, NPS, time saved, cost reduction) — populate stat_cards
-- Use "two_column" to compare options, before/after, pros/cons, features vs benefits
-- Use "section_divider" between major topic areas (no content, just the section title)
-- Use "quote" for impactful customer quotes or key statements
-- Use "table" for structured comparisons, timelines, or data
-- Prefix ALL bullet text with a contextually relevant emoji icon (📊 📈 ✅ 🎯 ⚡ 🔒 💡 🚀 📋 🤝 🏆 etc.)
+- Use "stats" layout for 2-4 key metrics/KPIs — show as large bold numbers in cards in the HTML
+- Use "two_column" for comparisons, before/after, pros/cons
+- Use "section_divider" between major topics — full-bleed colored background, large title
+- Use "quote" for impactful quotes — oversized quotation mark, centered italic text
+- Prefix ALL bullet text with a contextually relevant emoji (📊 📈 ✅ 🎯 ⚡ 🔒 💡 🚀 📋 🤝 🏆)
+- Every slide MUST have html and speaker_notes
 - Include "slides" for document_type "pptx" or "both"
 - Include "sections" for document_type "docx" or "both"
-- Every slide MUST have speaker_notes
-- Use image_index only when a user screenshot is relevant to that slide
 `;
 
 // ─── Preset system prompts ────────────────────────────────────────────────────

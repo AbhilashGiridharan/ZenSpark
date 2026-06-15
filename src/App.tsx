@@ -14,6 +14,7 @@ import type {
 import AzureSettings from "./components/ConfigPanel/AzureSettings";
 import ChatRefinement from "./components/PreviewPanel/ChatRefinement";
 import SlideOutline from "./components/PreviewPanel/SlideOutline";
+import HTMLSlidePreview from "./components/PreviewPanel/HTMLSlidePreview";
 import DownloadButtons from "./components/ExportPanel/DownloadButtons";
 import {
   generateDocumentStream,
@@ -314,11 +315,16 @@ export default function App() {
 
           {/* Slide outline — scrollable, takes available space */}
           <div className="flex-1 overflow-y-auto px-4 py-3">
-            <SlideOutline
-              doc={generatedDoc}
-              isGenerating={isGenerating}
-              streamingText={streamingText}
-            />
+            {/* Show HTML slide viewer when LLM generated HTML, otherwise fallback list */}
+            {generatedDoc?.slides?.some((s) => s.html) ? (
+              <HTMLSlidePreview slides={generatedDoc.slides ?? []} />
+            ) : (
+              <SlideOutline
+                doc={generatedDoc}
+                isGenerating={isGenerating}
+                streamingText={streamingText}
+              />
+            )}
           </div>
 
           {/* Download section — pinned at bottom */}
