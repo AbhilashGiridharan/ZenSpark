@@ -367,13 +367,18 @@ export default function App() {
         accumulated += chunk;
       }
 
-      // Detect if the LLM returned a document JSON or a plain conversational reply
-      const trimmed = accumulated.trimStart();
+      // Detect if the LLM returned document JSON (with or without markdown code fences)
+      // Strip code fences first, then check if it looks like a doc object
+      const stripped = accumulated
+        .replace(/^[\s\S]*?```(?:json)?\s*/i, "")
+        .replace(/```[\s\S]*$/i, "")
+        .trimStart();
+      const candidate = stripped.startsWith("{") ? stripped : accumulated.trimStart();
       const looksLikeDocJson =
-        trimmed.startsWith("{") &&
-        (trimmed.includes('"slides"') || trimmed.includes('"document_type"') || trimmed.includes('"title"'));
+        (candidate.startsWith("{") || accumulated.includes("```json")) &&
+        (accumulated.includes('"slides"') || accumulated.includes('"document_type"'));
 
-      if (looksLikeDocJson && currentDoc) {
+      if (looksLikeDocJson) {
         try {
           const refined = parseDocumentJSON(accumulated);
           setGeneratedDoc(refined);

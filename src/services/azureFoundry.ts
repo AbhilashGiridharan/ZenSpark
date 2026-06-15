@@ -379,7 +379,7 @@ Decide how to respond based on the user's message:
    → Respond naturally in plain text. Be helpful, concise, and thoughtful.
 
 2. DOCUMENT EDIT — if the user explicitly wants to change, update, add, remove, or restructure slides in the open presentation:
-   → Return ONLY valid JSON of the complete updated document. No text before or after. Start with { end with }.
+   → Return ONLY valid JSON of the complete updated document. No text before or after. No markdown. No code fences. Your response must start with { and end with }.
 
 When in document-edit mode, apply the same rules as before:
 - If a specific slide is referenced, update ONLY that slide.
