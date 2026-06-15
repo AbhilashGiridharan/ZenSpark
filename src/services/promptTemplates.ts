@@ -4,6 +4,15 @@ import type { UseCasePreset, OutputFormat, ThemeOption } from "../types/document
 const JSON_SCHEMA = `
 IMPORTANT: Return ONLY a raw JSON object. Do NOT use markdown code fences. Do NOT include any explanation. Start with { and end with }.
 
+CRITICAL — EVERY slide object MUST contain ALL of the following fields. Omitting any of them will break the editable PowerPoint export:
+  • slide_number (integer)
+  • layout (one of the values listed below)
+  • title (string — the slide heading)
+  • The content fields that match the layout (bullets, left_column/right_column, table, stat_cards, quote — see below)
+  • html (full visual HTML — see rules below)
+  • background_html (decorative background HTML — see rules below)
+  • speaker_notes (string)
+
 For each slide you MUST generate TWO HTML fields:
 
 1. "html" — the FULL visual slide at exactly 960×540px (for browser preview). Include all text, shapes, styling.
@@ -27,22 +36,22 @@ Schema:
   "date": "YYYY-MM-DD",
   "slides": [
     {
-      "slide_number": number,
-      "layout": "title"|"bullets"|"two_column"|"image_caption"|"table"|"quote"|"section_divider"|"agenda"|"stats"|"closing",
-      "title": "string",
+      "slide_number": number,                    ← REQUIRED on every slide
+      "layout": "title"|"bullets"|"two_column"|"image_caption"|"table"|"quote"|"section_divider"|"agenda"|"stats"|"closing",  ← REQUIRED
+      "title": "string",                         ← REQUIRED on every slide
       "subtitle": "string (optional)",
-      "bullets": ["string"] (optional — PREFIX each bullet with a relevant emoji icon),
+      "bullets": ["string"] (REQUIRED for layout=bullets|agenda — PREFIX each bullet with a relevant emoji icon),
       "left_title": "string (optional)",
-      "left_column": ["string"] (optional),
+      "left_column": ["string"] (REQUIRED for layout=two_column),
       "right_title": "string (optional)",
-      "right_column": ["string"] (optional),
-      "table": { "headers": ["string"], "rows": [["string"]] } (optional),
-      "quote": "string (optional)",
+      "right_column": ["string"] (REQUIRED for layout=two_column),
+      "table": { "headers": ["string"], "rows": [["string"]] } (REQUIRED for layout=table),
+      "quote": "string (REQUIRED for layout=quote)",
       "attribution": "string (optional)",
-      "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (optional),
-      "html": "string (REQUIRED — full visual 960×540px HTML, all text and design included, for browser preview)",
-      "background_html": "string (REQUIRED — decorative-only 960×540px HTML, NO readable text, for PPTX background)",
-      "speaker_notes": "string (required)"
+      "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (REQUIRED for layout=stats),
+      "html": "string — REQUIRED — full visual 960×540px HTML, all text and design included, for browser preview",
+      "background_html": "string — REQUIRED — decorative-only 960×540px HTML, NO readable text, for PPTX background",
+      "speaker_notes": "string — REQUIRED"
     }
   ],
   "sections": [

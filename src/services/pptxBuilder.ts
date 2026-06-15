@@ -737,6 +737,30 @@ export async function buildAndDownloadPptx(
   for (const s of slides) {
     const slide_ = prs.addSlide();
 
+    // Normalize slides where LLM only provided html/background_html and skipped
+    // structured fields — extract title from HTML h1/h2 if title is missing,
+    // and derive bullets from li elements so the editable slide has real content.
+    if (!s.title && s.html) {
+      const h1 = s.html.match(/<h[12][^>]*>([\s\S]*?)<\/h[12]>/i);
+      if (h1) s.title = h1[1].replace(/<[^>]+>/g, "").trim();
+    }
+    if (!s.layout) {
+      // Detect layout from HTML structure heuristics
+      if (s.html?.includes("<table")) s.layout = "table";
+      else if (s.html?.match(/<h[12]/i) && !s.bullets?.length) s.layout = "bullets";
+      else s.layout = "bullets";
+    }
+    if (!s.bullets?.length && s.layout === "bullets" && s.html) {
+      const liMatches = [...(s.html.matchAll(/<li[^>]*>([\s\S]*?)<\/li>/gi))];
+      if (liMatches.length) {
+        s.bullets = liMatches
+          .map((m) => m[1].replace(/<[^>]+>/g, "").trim())
+          .filter(Boolean)
+          .slice(0, 10);
+      }
+    }
+    if (!s.slide_number) s.slide_number = (doc.slides?.indexOf(s) ?? 0) + 1;
+
     // Always use PptxGenJS native shape/text builders — fully editable, never corrupt.
     // The LLM-generated `html` field is browser-preview only; `background_html` is unused here.
     // This is the only reliable path: PptxGenJS writes clean XML directly from structured data.
