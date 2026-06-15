@@ -131,7 +131,7 @@ export default function App() {
     try {
       for await (const chunk of generateDocumentStream(
         azureConfig,
-        getSystemPrompt(useCase),
+        getSystemPrompt("custom"),
         userPrompt,
         inputImages,
         abort.signal
@@ -290,18 +290,12 @@ export default function App() {
             hasDoc={!!generatedDoc}
             files={inputFiles}
             images={inputImages}
-            useCase={useCase}
-            outputFormat={outputFormat}
-            theme={theme}
             onInputChange={setChatInput}
             onSend={handleSend}
             onAddFiles={handleAddFiles}
             onRemoveFile={handleRemoveFile}
             onAddImage={handleAddImage}
             onRemoveImage={handleRemoveImage}
-            onUseCaseChange={setUseCase}
-            onOutputFormatChange={setOutputFormat}
-            onThemeChange={setTheme}
           />
         </main>
 

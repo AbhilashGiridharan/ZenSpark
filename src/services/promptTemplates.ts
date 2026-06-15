@@ -130,10 +130,11 @@ Include slides covering:
 Tone: concise, data-backed, strategic, non-technical. Maximum 3 bullets per slide.
 ${JSON_SCHEMA}`,
 
-  custom: `You are an expert document and presentation specialist.
-Using the provided context and instructions, generate a comprehensive, well-structured document or presentation.
-Adapt the content structure to best suit the user's stated goal.
-Tone: professional, clear, audience-appropriate.
+  custom: `You are an expert presentation and document specialist.
+Read the user's goal and any uploaded files carefully. Infer the audience, purpose, and best structure from the content.
+Generate a comprehensive, well-structured presentation or document that best serves the user's stated intent.
+Choose the most appropriate layouts, number of slides, and level of detail based on what you read.
+Tone: professional, clear, and tailored to the inferred audience.
 ${JSON_SCHEMA}`,
 };
 
@@ -183,7 +184,14 @@ export function buildUserPrompt(
   lines.push("");
 
   lines.push(`## Output Settings`);
-  lines.push(`- Document type: ${outputFormat}`);
+  // Infer document type from user goal if not explicitly stated
+  const goalLower = goal.toLowerCase();
+  const inferredFormat = goalLower.includes("word") || goalLower.includes("report") || goalLower.includes("docx")
+    ? "docx"
+    : goalLower.includes("both") || goalLower.includes("pptx and docx")
+    ? "both"
+    : outputFormat; // use passed value as fallback
+  lines.push(`- Document type: ${inferredFormat}`);
   lines.push(`- Theme: ${theme}`);
   // Slide count: let the LLM decide based on content unless the user stated one explicitly
   const mentionedCount = goal ? goal.match(/(\d+)\s*slide/i) : null;
