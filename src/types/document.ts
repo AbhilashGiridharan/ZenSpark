@@ -36,7 +36,14 @@ export type SlideLayout =
   | "quote"
   | "section_divider"
   | "agenda"
+  | "stats"
   | "closing";
+
+export interface StatCard {
+  value: string;  // e.g. "94%", "$2.4M", "3x"
+  label: string;  // e.g. "Customer Satisfaction"
+  icon?: string;  // optional emoji e.g. "📊"
+}
 
 export interface Slide {
   slide_number: number;
@@ -52,6 +59,7 @@ export interface Slide {
   quote?: string;
   attribution?: string;
   image_index?: number;
+  stat_cards?: StatCard[];
   speaker_notes: string;
 }
 

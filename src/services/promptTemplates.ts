@@ -12,18 +12,19 @@ Return ONLY valid JSON matching this schema (no markdown, no code fences):
   "slides": [
     {
       "slide_number": number,
-      "layout": "title"|"bullets"|"two_column"|"image_caption"|"table"|"quote"|"section_divider"|"agenda"|"closing",
+      "layout": "title"|"bullets"|"two_column"|"image_caption"|"table"|"quote"|"section_divider"|"agenda"|"stats"|"closing",
       "title": "string",
       "subtitle": "string (optional)",
-      "bullets": ["string"] (optional — for bullets/agenda layouts),
+      "bullets": ["string"] (optional — for bullets/agenda layouts; PREFIX each bullet with a relevant emoji icon e.g. "📊 Key metrics…", "✅ Completed…", "⚡ Fast…", "🎯 Goal…"),
       "left_title": "string (optional)",
-      "left_column": ["string"] (optional — for two_column layout),
+      "left_column": ["string"] (optional — for two_column layout; prefix items with emoji icons),
       "right_title": "string (optional)",
-      "right_column": ["string"] (optional — for two_column layout),
+      "right_column": ["string"] (optional — for two_column layout; prefix items with emoji icons),
       "table": { "headers": ["string"], "rows": [["string"]] } (optional),
       "quote": "string (optional)",
       "attribution": "string (optional)",
       "image_index": number (optional — 0-based index into user images),
+      "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji, optional)" }] (optional — for stats layout; value e.g. "94%", "$2.4M", "3x faster"),
       "speaker_notes": "string (required for every slide)"
     }
   ],
@@ -37,7 +38,13 @@ Return ONLY valid JSON matching this schema (no markdown, no code fences):
     }
   ]
 }
-Notes:
+Layout guidance:
+- Use "stats" layout when presenting 2-4 key metrics/KPIs (e.g. ROI, NPS, time saved, cost reduction) — populate stat_cards
+- Use "two_column" to compare options, before/after, pros/cons, features vs benefits
+- Use "section_divider" between major topic areas (no content, just the section title)
+- Use "quote" for impactful customer quotes or key statements
+- Use "table" for structured comparisons, timelines, or data
+- Prefix ALL bullet text with a contextually relevant emoji icon (📊 📈 ✅ 🎯 ⚡ 🔒 💡 🚀 📋 🤝 🏆 etc.)
 - Include "slides" for document_type "pptx" or "both"
 - Include "sections" for document_type "docx" or "both"
 - Every slide MUST have speaker_notes
