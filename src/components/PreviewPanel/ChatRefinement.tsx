@@ -18,7 +18,7 @@ import {
   formatFileSize,
 } from "../../services/fileExtractor";
 
-const DOC_ACCEPT = ".pdf,.docx,.txt,.md,.csv,.html,.htm";
+const DOC_ACCEPT = ".pdf,.pptx,.docx,.txt,.md,.csv,.html,.htm";
 const IMG_ACCEPT = "image/*";
 
 interface Props {
@@ -37,7 +37,9 @@ interface Props {
   onRemoveImage: (id: string) => void;
 }
 
-function fileTypeIcon(type: string) {
+function fileTypeIcon(type: string, name = "") {
+  if (name.endsWith(".pptx") || type.includes("presentation"))
+    return <FileText size={12} className="text-orange-400" />;
   if (type.includes("pdf") || type.includes("word"))
     return <FileText size={12} className="text-blue-400" />;
   if (type.includes("csv") || type.includes("spreadsheet"))
@@ -211,7 +213,7 @@ export default function ChatRefinement({
                 key={f.id}
                 className="flex items-center gap-1.5 rounded-full border border-gray-700 bg-gray-800/80 px-2.5 py-1 text-xs text-gray-300"
               >
-                {fileTypeIcon(f.type)}
+                {fileTypeIcon(f.type, f.name)}
                 <span className="max-w-[140px] truncate">{f.name}</span>
                 <span className="text-gray-600">{formatFileSize(f.size)}</span>
                 <button

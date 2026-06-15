@@ -65,6 +65,44 @@ async function extractDocx(file: File): Promise<string> {
   return result.value;
 }
 
+// ─── PPTX extraction via JSZip ───────────────────────────────────────────────
+// A .pptx file is a ZIP containing XML slide files at ppt/slides/slide*.xml
+async function extractPptx(file: File): Promise<string> {
+  const JSZip = (await import("jszip")).default;
+  const arrayBuffer = await readAsArrayBuffer(file);
+  const zip = await JSZip.loadAsync(arrayBuffer);
+
+  // Collect slide XML files in order
+  const slideFiles = Object.keys(zip.files)
+    .filter((name) => /^ppt\/slides\/slide\d+\.xml$/.test(name))
+    .sort((a, b) => {
+      const numA = parseInt(a.match(/\d+/)?.[0] ?? "0");
+      const numB = parseInt(b.match(/\d+/)?.[0] ?? "0");
+      return numA - numB;
+    });
+
+  const pages: string[] = [];
+
+  for (const slideName of slideFiles) {
+    const xml = await zip.files[slideName].async("text");
+    // Strip all XML tags, decode entities, collapse whitespace
+    const text = xml
+      .replace(/<[^>]+>/g, " ")
+      .replace(/&amp;/g, "&")
+      .replace(/&lt;/g, "<")
+      .replace(/&gt;/g, ">")
+      .replace(/&quot;/g, '"')
+      .replace(/&apos;/g, "'")
+      .replace(/\s+/g, " ")
+      .trim();
+    if (text) pages.push(text);
+  }
+
+  return pages
+    .map((t, i) => `[Slide ${i + 1}]\n${t}`)
+    .join("\n\n");
+}
+
 // ─── CSV extraction via PapaParse ────────────────────────────────────────────
 async function extractCsv(file: File): Promise<string> {
   const Papa = await import("papaparse");
@@ -94,6 +132,13 @@ export async function extractFileText(file: File): Promise<string> {
 
   if (name.endsWith(".pdf") || type === "application/pdf") {
     return extractPdf(file);
+  }
+
+  if (
+    name.endsWith(".pptx") ||
+    type === "application/vnd.openxmlformats-officedocument.presentationml.presentation"
+  ) {
+    return extractPptx(file);
   }
 
   if (
