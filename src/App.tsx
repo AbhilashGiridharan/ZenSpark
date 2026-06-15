@@ -26,6 +26,9 @@ import {
   getSystemPrompt,
 } from "./services/promptTemplates";
 import { captureBackground } from "./services/pptxBuilder";
+import { loadKnowledgeBaseFolder } from "./services/fileExtractor";
+import { generateClarifyingQuestions } from "./services/azureFoundry";
+import type { ClarifyingQuestion } from "./services/azureFoundry";
 
 const STORAGE_KEY = "ai_doc_azure_config";
 const SESSION_KEY = "zenspark_session";
@@ -107,6 +110,12 @@ export default function App() {
   const [slideBackgrounds, setSlideBackgrounds] = useState<(string | null)[]>([]);
   const [bgCapture, setBgCapture] = useState<{ done: number; total: number } | null>(null);
 
+  // Clarifying questions flow
+  const [clarifyingQuestions, setClarifyingQuestions] = useState<ClarifyingQuestion[]>([]);
+  const [clarifyAnswers, setClarifyAnswers] = useState<Record<string, string>>({});
+  const [isClarifying, setIsClarifying] = useState(false);
+  const pendingGoalRef = useRef<string>("");
+
   // Restore last session on mount
   useEffect(() => {
     const session = loadSession();
@@ -164,8 +173,19 @@ export default function App() {
     setInputImages([]);
     setSlideBackgrounds([]);
     setBgCapture(null);
+    setClarifyingQuestions([]);
+    setClarifyAnswers({});
     localStorage.removeItem(SESSION_KEY);
   };
+
+  // ── Folder Knowledge Base ──────────────────────────────────────────────────
+  const handleLoadFolder = useCallback(async () => {
+    const result = await loadKnowledgeBaseFolder();
+    if (!result) return;
+    handleAddFiles(result.files);
+    const msg = `📂 Knowledge base loaded: "${result.folderName}" — ${result.files.length} files indexed${result.skippedFiles > 0 ? `, ${result.skippedFiles} skipped` : ""}. The LLM will use this as context.`;
+    setChatHistory((prev) => [...prev, { role: "assistant" as const, content: msg }]);
+  }, [handleAddFiles]);
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleAddFiles = useCallback((newFiles: InputFile[]) => {
@@ -190,20 +210,38 @@ export default function App() {
     setShowSettings(false);
   };
 
-  const handleGenerate = async () => {
+  // Core generation logic — accepts optional clarify answers appended to goal
+  const runGenerate = async (goal: string, answers?: Record<string, string>) => {
     if (!azureConfig) {
       setShowSettings(true);
       return;
     }
 
+    setClarifyingQuestions([]);
+    setClarifyAnswers({});
     setError(null);
     setIsGenerating(true);
     setStreamingText("");
     setGeneratedDoc(null);
 
-    // Show the user's request in chat history
-    const userGoal = chatInput.trim();
-    setChatHistory([{ role: "user", content: userGoal }]);
+    // Build goal with answers if present
+    let fullGoal = goal;
+    if (answers && Object.keys(answers).length > 0) {
+      const answersText = Object.entries(answers)
+        .map(([id, ans]) => {
+          const q = clarifyingQuestions.find((cq) => cq.id === id);
+          return q ? `- ${q.question}\n  Answer: ${ans}` : `- ${ans}`;
+        })
+        .join("\n");
+      fullGoal = `${goal}\n\nUser clarifications:\n${answersText}`;
+    }
+
+    const userGoal = fullGoal.trim();
+    setChatHistory((prev) => {
+      // replace last user message if it was set by send handler
+      const last = prev[prev.length - 1];
+      return last?.role === "user" ? prev : [...prev, { role: "user", content: goal }];
+    });
     setChatInput("");
 
     const fileTexts = inputFiles.map((f) => ({
@@ -256,6 +294,51 @@ export default function App() {
       abortRef.current = null;
       setIsGenerating(false);
     }
+  };
+
+  const handleGenerate = async () => {
+    if (!azureConfig) { setShowSettings(true); return; }
+
+    const goal = chatInput.trim();
+    if (!goal) return;
+
+    // Save goal for later use after clarify
+    pendingGoalRef.current = goal;
+    setChatHistory([{ role: "user", content: goal }]);
+    setChatInput("");
+
+    // Ask clarifying questions first
+    setIsClarifying(true);
+    try {
+      const abort = new AbortController();
+      abortRef.current = abort;
+      const questions = await generateClarifyingQuestions(
+        azureConfig,
+        goal,
+        inputFiles.map((f) => f.name),
+        abort.signal
+      );
+      setClarifyingQuestions(questions);
+    } catch {
+      // If questions fail, just generate directly
+      setClarifyingQuestions([]);
+      await runGenerate(goal);
+    } finally {
+      abortRef.current = null;
+      setIsClarifying(false);
+    }
+  };
+
+  const handleSubmitClarify = () => {
+    runGenerate(pendingGoalRef.current, clarifyAnswers);
+  };
+
+  const handleSkipClarify = () => {
+    runGenerate(pendingGoalRef.current);
+  };
+
+  const handleClarifyAnswer = (id: string, answer: string) => {
+    setClarifyAnswers((prev) => ({ ...prev, [id]: answer }));
   };
 
   const handleChatSend = async () => {
@@ -395,12 +478,20 @@ export default function App() {
             hasDoc={!!generatedDoc}
             files={inputFiles}
             images={inputImages}
+            slides={generatedDoc?.slides ?? []}
+            clarifyingQuestions={clarifyingQuestions}
+            clarifyAnswers={clarifyAnswers}
+            isClarifying={isClarifying}
             onInputChange={setChatInput}
             onSend={handleSend}
             onAddFiles={handleAddFiles}
             onRemoveFile={handleRemoveFile}
             onAddImage={handleAddImage}
             onRemoveImage={handleRemoveImage}
+            onLoadFolder={handleLoadFolder}
+            onClarifyAnswer={handleClarifyAnswer}
+            onSkipClarify={handleSkipClarify}
+            onSubmitClarify={handleSubmitClarify}
           />
         </main>
 

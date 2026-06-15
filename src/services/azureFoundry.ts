@@ -200,13 +200,26 @@ export async function* refineDocumentStream(
   images: InputImage[],
   signal?: AbortSignal
 ): AsyncGenerator<string> {
-  const systemPrompt = `You are an expert document assistant. The user has an existing document structure in JSON.
-They will give you a refinement instruction. Apply the instruction and return the COMPLETE updated document as valid JSON.
-Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
+  // Build a compact slide index so the LLM can reason about specific slides
+  const slideIndex = (currentDoc.slides ?? [])
+    .map((s) => `  Slide ${s.slide_number} [${s.layout}]: "${s.title}"`)
+    .join("\n");
+
+  const systemPrompt = `You are an expert document assistant refining an existing presentation.
+
+Current slide index:
+${slideIndex || "(no slides yet)"}
+
+Instructions for slide-specific edits:
+- If the user references "slide N" or a slide title, update ONLY that slide — keep all other slides exactly as they are.
+- If the instruction is global (e.g. "change theme", "make it shorter"), apply it to all slides.
+- Return the COMPLETE updated document JSON — all slides must be present.
+- Maintain all existing fields (html, background_html, speaker_notes) unless the instruction specifically changes content.
+- ONLY return raw JSON. No markdown. No code fences. No explanation. Start with { end with }.`;
 
   if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
     const msgs: { role: "user" | "assistant"; content: string }[] = [
-      ...chatHistory.map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
+      ...chatHistory.slice(0, -1).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
       {
         role: "user" as const,
         content: `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nInstruction: ${newInstruction}`,
@@ -219,7 +232,7 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   const client = createAzureClient(config);
   const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
     { role: "system", content: systemPrompt },
-    ...chatHistory.map((m) => ({
+    ...chatHistory.slice(0, -1).map((m) => ({
       role: m.role as "user" | "assistant",
       content: m.content,
     })),
@@ -248,6 +261,63 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
     const delta = chunk.choices[0]?.delta?.content ?? "";
     if (delta) yield delta;
   }
+}
+
+// ─── Clarifying questions (pre-generation) ───────────────────────────────────
+export interface ClarifyingQuestion {
+  id: string;
+  question: string;
+  hint?: string;
+}
+
+export async function generateClarifyingQuestions(
+  config: AzureConfig,
+  userGoal: string,
+  fileNames: string[],
+  signal?: AbortSignal
+): Promise<ClarifyingQuestion[]> {
+  const systemPrompt = `You are a presentation strategist. The user wants to generate a presentation.
+Analyze their goal and uploaded files, then generate 3-5 SHORT clarifying questions that would help you create a much better presentation.
+Focus on: audience, key message, specific data to highlight, tone/formality, must-include content.
+Return ONLY a JSON array — no markdown, no explanation. Example:
+[
+  {"id":"q1","question":"Who is the primary audience?","hint":"e.g. C-suite, engineers, investors"},
+  {"id":"q2","question":"What is the single most important takeaway?","hint":"The one thing they must remember"}
+]`;
+
+  const userMsg = `User goal: ${userGoal}\nUploaded files: ${fileNames.join(", ") || "none"}`;
+
+  let raw = "";
+
+  if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
+    for await (const chunk of streamAnthropic(config, systemPrompt, [{ role: "user", content: userMsg }], signal)) {
+      raw += chunk;
+    }
+  } else {
+    const client = createAzureClient(config);
+    const stream = await client.chat.completions.create({
+      model: config.deploymentName,
+      messages: [
+        { role: "system", content: systemPrompt },
+        { role: "user", content: userMsg },
+      ],
+      stream: true,
+      max_tokens: 800,
+      temperature: 0.4,
+    }, { signal });
+    for await (const chunk of stream) {
+      raw += chunk.choices[0]?.delta?.content ?? "";
+    }
+  }
+
+  try {
+    const start = raw.indexOf("[");
+    const end = raw.lastIndexOf("]");
+    if (start !== -1 && end > start) {
+      return JSON.parse(raw.slice(start, end + 1)) as ClarifyingQuestion[];
+    }
+  } catch { /* fall through */ }
+  return [];
 }
 
 // ─── JSON parser with truncation recovery ───────────────────────────────────

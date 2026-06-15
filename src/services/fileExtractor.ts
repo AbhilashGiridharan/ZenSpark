@@ -217,3 +217,81 @@ export function formatFileSize(bytes: number): string {
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
+
+// ─── Folder knowledge base (File System Access API) ──────────────────────────
+const KB_SUPPORTED_EXTS = new Set([
+  ".pdf", ".pptx", ".docx", ".txt", ".md", ".csv", ".json", ".html", ".htm", ".xml",
+]);
+
+async function walkDirectory(
+  dirHandle: FileSystemDirectoryHandle,
+  path = "",
+  files: File[] = []
+): Promise<File[]> {
+  for await (const [name, handle] of dirHandle as unknown as AsyncIterable<[string, FileSystemHandle]>) {
+    if (handle.kind === "file") {
+      const ext = name.slice(name.lastIndexOf(".")).toLowerCase();
+      if (KB_SUPPORTED_EXTS.has(ext)) {
+        const file = await (handle as FileSystemFileHandle).getFile();
+        // Attach relative path as a property for display
+        Object.defineProperty(file, "_kbPath", { value: path ? `${path}/${name}` : name });
+        files.push(file);
+      }
+    } else if (handle.kind === "directory") {
+      await walkDirectory(handle as FileSystemDirectoryHandle, path ? `${path}/${name}` : name, files);
+    }
+  }
+  return files;
+}
+
+export interface KnowledgeBaseResult {
+  files: InputFile[];
+  folderName: string;
+  totalFiles: number;
+  skippedFiles: number;
+}
+
+export async function loadKnowledgeBaseFolder(): Promise<KnowledgeBaseResult | null> {
+  if (!("showDirectoryPicker" in window)) {
+    alert("Folder picker is only supported in Chrome or Edge (desktop). Please use one of those browsers.");
+    return null;
+  }
+  let dirHandle: FileSystemDirectoryHandle;
+  try {
+    dirHandle = await (window as unknown as { showDirectoryPicker: (o?: Record<string, unknown>) => Promise<FileSystemDirectoryHandle> })
+      .showDirectoryPicker({ mode: "read" });
+  } catch {
+    // User cancelled
+    return null;
+  }
+
+  const raw = await walkDirectory(dirHandle);
+  const inputFiles: InputFile[] = [];
+  let skipped = 0;
+
+  for (const file of raw) {
+    try {
+      const extracted = await extractFileText(file);
+      if (extracted.trim()) {
+        inputFiles.push({
+          id: `kb-${file.name}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          name: (file as File & { _kbPath?: string })._kbPath ?? file.name,
+          size: file.size,
+          type: file.type || "text/plain",
+          extractedText: extracted,
+        });
+      } else {
+        skipped++;
+      }
+    } catch {
+      skipped++;
+    }
+  }
+
+  return {
+    files: inputFiles,
+    folderName: dirHandle.name,
+    totalFiles: raw.length,
+    skippedFiles: skipped,
+  };
+}

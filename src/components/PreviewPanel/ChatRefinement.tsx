@@ -9,8 +9,12 @@ import {
   FileSpreadsheet,
   File as FileIcon,
   Sparkles,
+  FolderOpen,
+  HelpCircle,
+  CheckCircle2,
 } from "lucide-react";
-import type { ChatMessage, InputFile, InputImage } from "../../types/document";
+import type { ChatMessage, InputFile, InputImage, Slide } from "../../types/document";
+import type { ClarifyingQuestion } from "../../services/azureFoundry";
 import {
   fileToInputFile,
   fileToInputImage,
@@ -29,12 +33,20 @@ interface Props {
   hasDoc: boolean;
   files: InputFile[];
   images: InputImage[];
+  slides?: Slide[];
+  clarifyingQuestions?: ClarifyingQuestion[];
+  clarifyAnswers?: Record<string, string>;
+  isClarifying?: boolean;
   onInputChange: (v: string) => void;
   onSend: () => void;
   onAddFiles: (files: InputFile[]) => void;
   onRemoveFile: (id: string) => void;
   onAddImage: (img: InputImage) => void;
   onRemoveImage: (id: string) => void;
+  onLoadFolder?: () => void;
+  onClarifyAnswer?: (id: string, answer: string) => void;
+  onSkipClarify?: () => void;
+  onSubmitClarify?: () => void;
 }
 
 function fileTypeIcon(type: string, name = "") {
@@ -55,12 +67,20 @@ export default function ChatRefinement({
   hasDoc,
   files,
   images,
+  slides = [],
+  clarifyingQuestions = [],
+  clarifyAnswers = {},
+  isClarifying = false,
   onInputChange,
   onSend,
   onAddFiles,
   onRemoveFile,
   onAddImage,
   onRemoveImage,
+  onLoadFolder,
+  onClarifyAnswer,
+  onSkipClarify,
+  onSubmitClarify,
 }: Props) {
   const bottomRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -153,7 +173,7 @@ export default function ChatRefinement({
     <div className="flex h-full flex-col overflow-hidden">
       {/* ── Message history ───────────────────────────────────────── */}
       <div className="flex-1 overflow-y-auto px-4 py-4">
-        {history.length === 0 && !isGenerating && (
+        {history.length === 0 && !isGenerating && clarifyingQuestions.length === 0 && !isClarifying && (
           <div className="flex h-full flex-col items-center justify-center gap-3 text-center">
             <div className="flex h-12 w-12 items-center justify-center rounded-xl bg-blue-600/20 text-blue-400">
               <Sparkles size={24} />
@@ -185,6 +205,55 @@ export default function ChatRefinement({
             </div>
           ))}
 
+          {/* Clarifying questions panel */}
+          {clarifyingQuestions.length > 0 && !isGenerating && (
+            <div className="rounded-xl border border-purple-800/60 bg-purple-950/20 p-3">
+              <div className="mb-2 flex items-center gap-1.5">
+                <HelpCircle size={13} className="text-purple-400" />
+                <span className="text-xs font-semibold text-purple-300">A few quick questions to make your presentation better</span>
+              </div>
+              <div className="space-y-2.5">
+                {clarifyingQuestions.map((q) => (
+                  <div key={q.id} className="space-y-1">
+                    <p className="text-xs font-medium text-gray-300">{q.question}</p>
+                    {q.hint && <p className="text-[10px] text-gray-600">{q.hint}</p>}
+                    <input
+                      type="text"
+                      value={clarifyAnswers[q.id] ?? ""}
+                      onChange={(e) => onClarifyAnswer?.(q.id, e.target.value)}
+                      placeholder="Your answer…"
+                      className="w-full rounded-lg border border-gray-700 bg-gray-800/60 px-2.5 py-1.5 text-xs text-gray-200 placeholder-gray-600 focus:border-purple-600 focus:outline-none"
+                    />
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 flex gap-2">
+                <button
+                  onClick={onSubmitClarify}
+                  className="flex items-center gap-1.5 rounded-lg bg-purple-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-purple-500"
+                >
+                  <CheckCircle2 size={12} />
+                  Generate with answers
+                </button>
+                <button
+                  onClick={onSkipClarify}
+                  className="rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-500 hover:border-gray-600 hover:text-gray-300"
+                >
+                  Skip, generate now
+                </button>
+              </div>
+            </div>
+          )}
+
+          {isClarifying && (
+            <div className="flex justify-start">
+              <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-gray-800 px-4 py-2.5">
+                <Loader2 size={13} className="animate-spin text-purple-400" />
+                <span className="text-sm text-gray-400">Preparing questions…</span>
+              </div>
+            </div>
+          )}
+
           {(isGenerating || isRefining) && (
             <div className="flex justify-start">
               <div className="flex items-center gap-2 rounded-2xl rounded-bl-sm bg-gray-800 px-4 py-2.5">
@@ -198,6 +267,25 @@ export default function ChatRefinement({
           <div ref={bottomRef} />
         </div>
       </div>
+
+      {/* ── Slide chips (when doc exists) ─────────────────────────── */}
+      {hasDoc && slides.length > 0 && !busy && (
+        <div className="flex-shrink-0 border-t border-gray-800/60 px-4 py-1.5">
+          <p className="mb-1 text-[10px] text-gray-600">Click a slide to reference it:</p>
+          <div className="flex flex-wrap gap-1 max-h-16 overflow-y-auto">
+            {slides.map((s) => (
+              <button
+                key={s.slide_number}
+                onClick={() => onInputChange(`Update slide ${s.slide_number} (${s.title}): `)}
+                title={s.title}
+                className="rounded-full border border-gray-700 bg-gray-800/50 px-2 py-0.5 text-[10px] text-gray-400 hover:border-blue-700 hover:bg-blue-900/30 hover:text-blue-300 transition-colors"
+              >
+                #{s.slide_number} {s.title.slice(0, 22)}{s.title.length > 22 ? "…" : ""}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
 
       {/* ── Composer ─────────────────────────────────────────────── */}
       <div
@@ -271,6 +359,16 @@ export default function ChatRefinement({
             >
               <ImageIcon size={16} />
             </button>
+            {onLoadFolder && (
+              <button
+                type="button"
+                title="Load local folder as knowledge base (Chrome/Edge)"
+                onClick={onLoadFolder}
+                className="rounded-md p-1.5 text-gray-500 transition-colors hover:bg-gray-700 hover:text-gray-300"
+              >
+                <FolderOpen size={16} />
+              </button>
+            )}
           </div>
 
           {/* Textarea */}
