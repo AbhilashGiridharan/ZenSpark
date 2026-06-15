@@ -320,6 +320,87 @@ Return ONLY a JSON array — no markdown, no explanation. Example:
   return [];
 }
 
+// ─── Smart dual-mode chat (conversational OR doc-edit) ───────────────────────
+// If the user is asking a general question → reply naturally.
+// If the user wants to edit the document → return only JSON.
+export async function* smartChatStream(
+  config: AzureConfig,
+  currentDoc: DocumentOutput | null,
+  chatHistory: ChatMessage[],
+  newMessage: string,
+  signal?: AbortSignal
+): AsyncGenerator<string> {
+  const slideIndex = (currentDoc?.slides ?? [])
+    .map((s) => `  Slide ${s.slide_number} [${s.layout}]: "${s.title}"`)
+    .join("\n");
+
+  const docContext = currentDoc
+    ? `\nThe user currently has a presentation open with these slides:\n${slideIndex || "(no slides yet)"}\n`
+    : "";
+
+  const systemPrompt = `You are ZenSpark, an intelligent AI assistant that can both converse naturally and create/edit professional presentations.
+${docContext}
+Decide how to respond based on the user's message:
+
+1. GENERAL CONVERSATION — if the user is asking a question, having a discussion, requesting advice, brainstorming, or anything not directly modifying the presentation:
+   → Respond naturally in plain text. Be helpful, concise, and thoughtful.
+
+2. DOCUMENT EDIT — if the user explicitly wants to change, update, add, remove, or restructure slides in the open presentation:
+   → Return ONLY valid JSON of the complete updated document. No text before or after. Start with { end with }.
+
+When in document-edit mode, apply the same rules as before:
+- If a specific slide is referenced, update ONLY that slide.
+- Keep all other slides exactly as-is.
+- Return ALL slides in the JSON — no slides may be omitted.
+- Preserve all existing fields (html, background_html, speaker_notes) unless instructed otherwise.`;
+
+  if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
+    const msgs: { role: "user" | "assistant"; content: string }[] = [
+      ...chatHistory.slice(0, -1).map((m) => ({
+        role: m.role as "user" | "assistant",
+        content: m.content,
+      })),
+      {
+        role: "user" as const,
+        content: currentDoc
+          ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}`
+          : newMessage,
+      },
+    ];
+    yield* streamAnthropic(config, systemPrompt, msgs, signal);
+    return;
+  }
+
+  const client = createAzureClient(config);
+  const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
+    { role: "system", content: systemPrompt },
+    ...chatHistory.slice(0, -1).map((m) => ({
+      role: m.role as "user" | "assistant",
+      content: m.content,
+    })),
+    {
+      role: "user" as const,
+      content: currentDoc
+        ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}`
+        : newMessage,
+    },
+  ];
+
+  const stream = await client.chat.completions.create({
+    model: config.deploymentName,
+    messages,
+    stream: true,
+    max_tokens: config.maxTokens,
+    temperature: config.temperature,
+  }, { signal });
+
+  for await (const chunk of stream) {
+    if (signal?.aborted) break;
+    const delta = chunk.choices[0]?.delta?.content ?? "";
+    if (delta) yield delta;
+  }
+}
+
 // ─── JSON parser with truncation recovery ───────────────────────────────────
 export function parseDocumentJSON(raw: string): DocumentOutput {
   // Aggressively extract just the JSON object — find first { and last }

@@ -18,7 +18,7 @@ import HTMLSlidePreview from "./components/PreviewPanel/HTMLSlidePreview";
 import DownloadButtons from "./components/ExportPanel/DownloadButtons";
 import {
   generateDocumentStream,
-  refineDocumentStream,
+  smartChatStream,
   parseDocumentJSON,
 } from "./services/azureFoundry";
 import {
@@ -341,8 +341,9 @@ export default function App() {
     setClarifyAnswers((prev) => ({ ...prev, [id]: answer }));
   };
 
-  const handleChatSend = async () => {
-    if (!azureConfig || !generatedDoc || !chatInput.trim()) return;
+  // Dual-mode chat: conversational OR document editing, decided by the LLM
+  const handleChatSend = async (currentDoc: DocumentOutput | null = generatedDoc) => {
+    if (!azureConfig || !chatInput.trim()) return;
 
     const userMsg: ChatMessage = { role: "user", content: chatInput };
     const updatedHistory = [...chatHistory, userMsg];
@@ -355,23 +356,37 @@ export default function App() {
     abortRef.current = abort;
     let accumulated = "";
     try {
-      for await (const chunk of refineDocumentStream(
+      for await (const chunk of smartChatStream(
         azureConfig,
-        generatedDoc,
+        currentDoc,
         updatedHistory,
         userMsg.content,
-        inputImages,
         abort.signal
       )) {
         accumulated += chunk;
       }
 
-      const refined = parseDocumentJSON(accumulated);
-      setGeneratedDoc(refined);
-      setChatHistory((prev) => [
-        ...prev,
-        { role: "assistant", content: "Done — document updated." },
-      ]);
+      // Detect if the LLM returned a document JSON or a plain conversational reply
+      const trimmed = accumulated.trimStart();
+      const looksLikeDocJson =
+        trimmed.startsWith("{") &&
+        (trimmed.includes('"slides"') || trimmed.includes('"document_type"') || trimmed.includes('"title"'));
+
+      if (looksLikeDocJson && currentDoc) {
+        try {
+          const refined = parseDocumentJSON(accumulated);
+          setGeneratedDoc(refined);
+          setChatHistory((prev) => [
+            ...prev,
+            { role: "assistant", content: "Done — document updated." },
+          ]);
+        } catch {
+          // Parsing failed — show raw response as chat
+          setChatHistory((prev) => [...prev, { role: "assistant", content: accumulated }]);
+        }
+      } else {
+        setChatHistory((prev) => [...prev, { role: "assistant", content: accumulated }]);
+      }
     } catch (err) {
       if ((err as Error).name !== "AbortError") {
         const msg = err instanceof Error ? err.message : String(err);
@@ -387,11 +402,21 @@ export default function App() {
     }
   };
 
-  // Routes to generate (first time) or refine (subsequent)
+  // Routes: free chat (no doc), generate doc, or dual-mode chat (with doc)
+  const isDocCreationIntent = (msg: string) => {
+    const m = msg.toLowerCase();
+    return /\b(create|make|generate|build|write|draft|design|prepare)\b/.test(m) &&
+      /\b(presentation|deck|slides?|pptx|document|report|proposal|whitepaper|pitch)\b/.test(m);
+  };
+
   const handleSend = () => {
     if (!chatInput.trim()) return;
     if (!generatedDoc) {
-      handleGenerate();
+      if (isDocCreationIntent(chatInput)) {
+        handleGenerate();
+      } else {
+        handleChatSend(null); // free conversational chat, no doc context
+      }
     } else {
       handleChatSend();
     }
