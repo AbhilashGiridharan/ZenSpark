@@ -147,8 +147,10 @@ ${JSON_SCHEMA}`,
 
   custom: `You are an expert presentation and document specialist.
 Read the user's goal and any uploaded files carefully. Infer the audience, purpose, and best structure from the content.
-Generate a comprehensive, well-structured presentation or document that best serves the user's stated intent.
-Choose the most appropriate layouts, number of slides, and level of detail based on what you read.
+Generate a presentation or document that best serves the user's stated intent.
+IMPORTANT: If the user asks for "a slide", "one slide", "convert this image", or references a single item — generate exactly 1 slide, not more.
+If the Output Settings specify a target slide count, follow it exactly — do not generate more or fewer slides.
+Choose the most appropriate layouts and level of detail based on the content.
 Tone: professional, clear, and tailored to the inferred audience.
 CRITICAL: Your entire response must be a single raw JSON object. Do NOT wrap it in markdown code fences. Do NOT include any text before or after the JSON. Start your response with { and end with }.
 ${JSON_SCHEMA}`,
@@ -209,10 +211,13 @@ export function buildUserPrompt(
     : outputFormat; // use passed value as fallback
   lines.push(`- Document type: ${inferredFormat}`);
   lines.push(`- Theme: ${theme}`);
-  // Slide count: let the LLM decide based on content unless the user stated one explicitly
+  // Slide count: respect explicit numbers, singular intent, or let LLM decide
   const mentionedCount = goal ? goal.match(/(\d+)\s*slide/i) : null;
+  const singularSlide = goal ? /\b(a|one|single|1)\s+slide\b/i.test(goal) || /\bconvert\b.*\bimage\b/i.test(goal) || /\bthis\s+(image|photo|screenshot)\b/i.test(goal) : false;
   if (mentionedCount) {
     lines.push(`- Target slide count: ${mentionedCount[1]} slides (as requested)`);
+  } else if (singularSlide) {
+    lines.push(`- Target slide count: 1 slide (user wants a single slide)`);
   } else {
     lines.push(`- Slide count: choose the most appropriate number based on content complexity (typical range 8-20, do not pad with filler slides)`);
   }
