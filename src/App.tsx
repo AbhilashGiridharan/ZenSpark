@@ -303,7 +303,11 @@ export default function App() {
 
     // Save goal for later use after clarify
     pendingGoalRef.current = goal;
-    setChatHistory([{ role: "user", content: goal }]);
+    const attachments: ChatMessage["attachments"] = [
+      ...inputFiles.map((f) => ({ type: "file" as const, name: f.name })),
+      ...inputImages.map((img) => ({ type: "image" as const, name: img.name, preview: img.preview })),
+    ];
+    setChatHistory([{ role: "user", content: goal, timestamp: new Date(), ...(attachments.length ? { attachments } : {}) }]);
     setChatInput("");
 
     // Ask clarifying questions first
@@ -344,7 +348,18 @@ export default function App() {
   const handleChatSend = async (currentDoc: DocumentOutput | null = generatedDoc) => {
     if (!azureConfig || !chatInput.trim()) return;
 
-    const userMsg: ChatMessage = { role: "user", content: chatInput };
+    // Snapshot attachments into the message for display in chat history
+    const attachments: ChatMessage["attachments"] = [
+      ...inputFiles.map((f) => ({ type: "file" as const, name: f.name })),
+      ...inputImages.map((img) => ({ type: "image" as const, name: img.name, preview: img.preview })),
+    ];
+
+    const userMsg: ChatMessage = {
+      role: "user",
+      content: chatInput,
+      timestamp: new Date(),
+      ...(attachments.length ? { attachments } : {}),
+    };
     const updatedHistory = [...chatHistory, userMsg];
     setChatHistory(updatedHistory);
     setChatInput("");

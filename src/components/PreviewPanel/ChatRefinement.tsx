@@ -13,7 +13,7 @@ import {
   HelpCircle,
   CheckCircle2,
 } from "lucide-react";
-import type { ChatMessage, InputFile, InputImage, Slide } from "../../types/document";
+import type { ChatMessage, ChatAttachment, InputFile, InputImage, Slide } from "../../types/document";
 import type { ClarifyingQuestion } from "../../services/azureFoundry";
 import {
   fileToInputFile,
@@ -200,6 +200,14 @@ export default function ChatRefinement({
                     : "rounded-bl-sm bg-gray-800 text-gray-300"
                 }`}
               >
+                {/* Attachment previews above text */}
+                {msg.attachments && msg.attachments.length > 0 && (
+                  <div className="mb-2 flex flex-wrap gap-1.5">
+                    {msg.attachments.map((att, ai) => (
+                      <AttachmentBadge key={ai} att={att} />
+                    ))}
+                  </div>
+                )}
                 {msg.content}
               </div>
             </div>
@@ -427,6 +435,32 @@ export default function ChatRefinement({
         className="hidden"
         onChange={handleImageFiles}
       />
+    </div>
+  );
+}
+
+// ── Attachment badge shown inside a chat bubble ───────────────────────────────
+function AttachmentBadge({ att }: { att: ChatAttachment }) {
+  if (att.type === "image" && att.preview) {
+    return (
+      <div className="h-16 w-24 flex-shrink-0 overflow-hidden rounded-lg border border-white/20">
+        <img src={att.preview} alt={att.name} className="h-full w-full object-cover" />
+      </div>
+    );
+  }
+  // File (PDF, PPTX, DOCX, CSV, etc.)
+  const ext = att.name.split(".").pop()?.toUpperCase() ?? "FILE";
+  const extColor =
+    ext === "PDF" ? "bg-red-500/20 text-red-300 border-red-500/30" :
+    ext === "PPTX" || ext === "PPT" ? "bg-orange-500/20 text-orange-300 border-orange-500/30" :
+    ext === "DOCX" || ext === "DOC" ? "bg-blue-500/20 text-blue-300 border-blue-500/30" :
+    ext === "CSV" || ext === "XLSX" ? "bg-green-500/20 text-green-300 border-green-500/30" :
+    "bg-gray-500/20 text-gray-300 border-gray-500/30";
+
+  return (
+    <div className={`flex items-center gap-1.5 rounded-lg border px-2 py-1 ${extColor}`}>
+      <span className="text-[10px] font-bold">{ext}</span>
+      <span className="max-w-[120px] truncate text-[11px]">{att.name}</span>
     </div>
   );
 }

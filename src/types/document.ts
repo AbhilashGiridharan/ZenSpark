@@ -105,10 +105,17 @@ export interface InputImage {
 }
 
 // ─── Chat ─────────────────────────────────────────────────────────────────────
+export interface ChatAttachment {
+  type: "file" | "image";
+  name: string;
+  preview?: string; // data URL for images
+}
+
 export interface ChatMessage {
   role: "user" | "assistant";
   content: string;
   timestamp: Date;
+  attachments?: ChatAttachment[];
 }
 
 // ─── Token usage ──────────────────────────────────────────────────────────────
