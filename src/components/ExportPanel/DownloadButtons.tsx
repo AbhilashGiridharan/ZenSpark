@@ -97,38 +97,26 @@ export default function DownloadButtons({
       <div className="space-y-2">
         {(outputFormat === "pptx" || outputFormat === "both") && (
           <>
-            {/* Primary: Visual PPTX — pixel-perfect match to preview */}
-            {hasHtmlSlides ? (
-              <DownloadBtn
-                label={
-                  downloading === "visual" && visualProgress
-                    ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
-                    : "Download PPTX"
-                }
-                icon={<Presentation size={15} />}
-                loading={downloading === "visual"}
-                disabled={!!downloading}
-                onClick={handleDownloadVisual}
-                color="blue"
-              />
-            ) : (
-              <DownloadBtn
-                label="Download PPTX"
-                icon={<Presentation size={15} />}
-                loading={downloading === "pptx"}
-                disabled={!!downloading}
-                onClick={handleDownloadPptx}
-                color="blue"
-              />
-            )}
-            {/* Secondary: editable fallback — small text link */}
+            {/* Primary: Editable PPTX — real PowerPoint shapes/text */}
+            <DownloadBtn
+              label="Download PPTX (Editable)"
+              icon={<Presentation size={15} />}
+              loading={downloading === "pptx"}
+              disabled={!!downloading}
+              onClick={handleDownloadPptx}
+              color="blue"
+              description="Fully editable in PowerPoint"
+            />
+            {/* Secondary: Visual PPTX — pixel-perfect screenshot, only when HTML exists */}
             {hasHtmlSlides && (
               <button
-                onClick={handleDownloadPptx}
+                onClick={handleDownloadVisual}
                 disabled={!!downloading}
                 className="w-full text-center text-[11px] text-gray-600 underline-offset-2 hover:text-gray-400 hover:underline disabled:opacity-40"
               >
-                Download editable version (text only, no visuals)
+                {downloading === "visual" && visualProgress
+                  ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
+                  : "Download visual version (matches preview, image-based)"}
               </button>
             )}
           </>
