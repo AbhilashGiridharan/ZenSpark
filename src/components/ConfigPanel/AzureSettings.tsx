@@ -65,9 +65,13 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
     setTestStatus("idle");
   };
 
-  // The exact URL that will be called
+  const isAzureOpenAI = form.endpoint.toLowerCase().includes(".openai.azure.com");
+
+  // The exact URL that will be called (reflects auto-detected mode)
   const previewUrl = form.endpoint && form.deploymentName
-    ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${form.apiVersion ? `?api-version=${form.apiVersion}` : ""}`
+    ? isAzureOpenAI
+      ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${form.apiVersion ? `?api-version=${form.apiVersion}` : ""}`
+      : `${form.endpoint.replace(/\/$/, "")}/v1/chat/completions  (model: ${form.deploymentName})`
     : "";
 
   const copyUrl = () => {
@@ -128,12 +132,27 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
         {/* Form */}
         <div className="max-h-[70vh] overflow-y-auto">
           <div className="space-y-4 px-6 py-5">
-            <Field label="Endpoint URL" hint='Azure AI Foundry → your project → Overview → "Endpoint"'>
+
+            {/* Auto-detected mode badge */}
+            {form.endpoint && (
+              <div className={`flex items-center gap-2 rounded-lg border px-3 py-2 text-xs ${
+                isAzureOpenAI
+                  ? "border-blue-800 bg-blue-950/30 text-blue-300"
+                  : "border-purple-800 bg-purple-950/30 text-purple-300"
+              }`}>
+                <span className="font-medium">
+                  {isAzureOpenAI ? "Azure OpenAI Service" : "Azure AI Foundry (Serverless)"}
+                </span>
+                <span className="text-gray-500">— auto-detected from endpoint</span>
+              </div>
+            )}
+
+            <Field label="Endpoint URL" hint='Azure AI Foundry → your project → Overview → "Endpoint" (e.g. https://....models.ai.azure.com)'>
               <input
                 type="url"
                 value={form.endpoint}
                 onChange={(e) => set("endpoint", e.target.value)}
-                placeholder="https://your-resource.openai.azure.com/"
+                placeholder="https://your-project.eastus2.models.ai.azure.com"
                 className={INPUT_CLS}
               />
             </Field>

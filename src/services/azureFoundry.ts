@@ -1,15 +1,35 @@
 import OpenAI from "openai";
 import type { AzureConfig, DocumentOutput, ChatMessage, InputImage } from "../types/document";
 
+// ─── Detect endpoint type ──────────────────────────────────────────────────────
+// Azure OpenAI Service: https://<name>.openai.azure.com  → uses /openai/deployments/<name>
+// Azure AI Foundry (serverless): anything else            → uses /v1/chat/completions
+function isAzureOpenAI(endpoint: string): boolean {
+  return endpoint.toLowerCase().includes(".openai.azure.com");
+}
+
 // ─── Client factory ───────────────────────────────────────────────────────────
 export function createAzureClient(config: AzureConfig): OpenAI {
-  return new OpenAI({
-    apiKey: config.apiKey,
-    baseURL: `${config.endpoint.replace(/\/$/, "")}/openai/deployments/${config.deploymentName}`,
-    ...(config.apiVersion ? { defaultQuery: { "api-version": config.apiVersion } } : {}),
-    defaultHeaders: { "api-key": config.apiKey },
-    dangerouslyAllowBrowser: true,
-  });
+  const base = config.endpoint.replace(/\/$/, "");
+
+  if (isAzureOpenAI(config.endpoint)) {
+    // Azure OpenAI Service — deployment name in URL path, api-key header, api-version query param
+    return new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: `${base}/openai/deployments/${config.deploymentName}`,
+      ...(config.apiVersion ? { defaultQuery: { "api-version": config.apiVersion } } : {}),
+      defaultHeaders: { "api-key": config.apiKey },
+      dangerouslyAllowBrowser: true,
+    });
+  } else {
+    // Azure AI Foundry (serverless / Models-as-a-Service)
+    // Uses standard OpenAI-compatible /v1 path; model name goes in request body
+    return new OpenAI({
+      apiKey: config.apiKey,
+      baseURL: `${base}/v1`,
+      dangerouslyAllowBrowser: true,
+    });
+  }
 }
 
 // ─── Connection test ──────────────────────────────────────────────────────────
