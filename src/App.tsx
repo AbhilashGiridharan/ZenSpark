@@ -12,11 +12,8 @@ import type {
   UseCasePreset,
 } from "./types/document";
 import AzureSettings from "./components/ConfigPanel/AzureSettings";
-import FileUpload from "./components/InputPanel/FileUpload";
-import ScreenshotPaste from "./components/InputPanel/ScreenshotPaste";
-import TextInput from "./components/InputPanel/TextInput";
-import SlideOutline from "./components/PreviewPanel/SlideOutline";
 import ChatRefinement from "./components/PreviewPanel/ChatRefinement";
+import SlideOutline from "./components/PreviewPanel/SlideOutline";
 import DownloadButtons from "./components/ExportPanel/DownloadButtons";
 import {
   generateDocumentStream,
@@ -48,7 +45,6 @@ export default function App() {
   // ── Inputs ─────────────────────────────────────────────────────────────────
   const [inputFiles, setInputFiles] = useState<InputFile[]>([]);
   const [inputImages, setInputImages] = useState<InputImage[]>([]);
-  const [inputText, setInputText] = useState("");
 
   // ── Output settings ────────────────────────────────────────────────────────
   const [useCase, setUseCase] = useState<UseCasePreset>("customer_proposal");
@@ -89,12 +85,6 @@ export default function App() {
     setInputImages((prev) => prev.filter((i) => i.id !== id));
   }, []);
 
-  const handleCaptionChange = useCallback((id: string, caption: string) => {
-    setInputImages((prev) =>
-      prev.map((img) => (img.id === id ? { ...img, caption } : img))
-    );
-  }, []);
-
   const handleSaveConfig = (cfg: AzureConfig) => {
     setAzureConfig(cfg);
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(cfg));
@@ -111,22 +101,21 @@ export default function App() {
     setIsGenerating(true);
     setStreamingText("");
     setGeneratedDoc(null);
-    setChatHistory([]);
+
+    // Show the user's request in chat history
+    const userGoal = chatInput.trim();
+    setChatHistory([{ role: "user", content: userGoal }]);
+    setChatInput("");
 
     const fileTexts = inputFiles.map((f) => ({
       name: f.name,
       content: f.text,
     }));
 
-    const goalText =
-      useCase === "custom" && customPrompt.trim()
-        ? customPrompt
-        : undefined;
-
     const userPrompt = buildUserPrompt(
-      goalText,
+      userGoal,
       fileTexts,
-      inputText.slice(0, 20_000),
+      "",
       slideCount,
       outputFormat,
       theme,
@@ -147,8 +136,11 @@ export default function App() {
 
       const doc = parseDocumentJSON(accumulated);
       setGeneratedDoc(doc);
+      setChatHistory((prev) => [
+        ...prev,
+        { role: "assistant", content: `Document ready: "${doc.title}" — ${(doc.slides ?? doc.sections ?? []).length} ${doc.document_type === "pptx" ? "slides" : "sections"} generated.` },
+      ]);
 
-      // Approximate token usage (Azure may not stream usage counts)
       const promptChars = userPrompt.length + fileTexts.reduce((s, f) => s + f.content.length, 0);
       setTokenUsage({
         promptTokens: Math.round(promptChars / 4),
@@ -178,7 +170,7 @@ export default function App() {
         azureConfig,
         generatedDoc,
         updatedHistory,
-        chatInput,
+        userMsg.content,
         inputImages
       )) {
         accumulated += chunk;
@@ -188,7 +180,7 @@ export default function App() {
       setGeneratedDoc(refined);
       setChatHistory((prev) => [
         ...prev,
-        { role: "assistant", content: "Document updated successfully." },
+        { role: "assistant", content: "Done — document updated." },
       ]);
     } catch (err) {
       const msg = err instanceof Error ? err.message : String(err);
@@ -202,6 +194,16 @@ export default function App() {
     }
   };
 
+  // Routes to generate (first time) or refine (subsequent)
+  const handleSend = () => {
+    if (!chatInput.trim()) return;
+    if (!generatedDoc) {
+      handleGenerate();
+    } else {
+      handleChatSend();
+    }
+  };
+
   // ── Layout ─────────────────────────────────────────────────────────────────
   return (
     <div className="flex h-screen flex-col bg-gray-950 text-gray-200 overflow-hidden">
@@ -212,7 +214,7 @@ export default function App() {
             AI
           </div>
           <div>
-            <h1 className="text-sm font-semibold leading-none">AI Doc Generator</h1>
+            <h1 className="text-sm font-semibold leading-none">ZenSpark</h1>
             <p className="text-xs text-gray-500">Powered by Azure AI Foundry</p>
           </div>
         </div>
@@ -240,76 +242,63 @@ export default function App() {
         </div>
       )}
 
-      {/* Three-panel body */}
+      {/* Two-panel body */}
       <div className="flex flex-1 overflow-hidden">
-        {/* ── LEFT: Input Panel ────────────────────────────────────────────── */}
-        <aside className="flex w-72 flex-shrink-0 flex-col gap-4 overflow-y-auto border-r border-gray-800 p-4">
-          <Section title="Upload Documents">
-            <FileUpload
-              files={inputFiles}
-              onAdd={handleAddFiles}
-              onRemove={handleRemoveFile}
-            />
-          </Section>
-
-          <Section title="Screenshots / Images">
-            <ScreenshotPaste
-              images={inputImages}
-              onAdd={handleAddImage}
-              onRemove={handleRemoveImage}
-              onCaptionChange={handleCaptionChange}
-            />
-          </Section>
-
-          <Section title="Paste Text / Notes">
-            <TextInput
-              value={inputText}
-              onChange={setInputText}
-            />
-          </Section>
-        </aside>
-
-        {/* ── CENTER: Preview Panel ──────────────────────────────────────── */}
-        <main className="flex flex-1 flex-col gap-4 overflow-hidden p-4">
-          <div className="flex-1 overflow-hidden">
-            <SlideOutline
-              doc={generatedDoc}
-              isGenerating={isGenerating}
-              streamingText={streamingText}
-            />
-          </div>
-
-          <div className="h-56 flex-shrink-0">
-            <ChatRefinement
-              history={chatHistory}
-              input={chatInput}
-              isRefining={isRefining}
-              disabled={!generatedDoc}
-              onInputChange={setChatInput}
-              onSend={handleChatSend}
-            />
-          </div>
+        {/* ── LEFT / MAIN: Chat Panel ───────────────────────────── */}
+        <main className="flex flex-1 flex-col overflow-hidden">
+          <ChatRefinement
+            history={chatHistory}
+            input={chatInput}
+            isGenerating={isGenerating}
+            isRefining={isRefining}
+            hasDoc={!!generatedDoc}
+            files={inputFiles}
+            images={inputImages}
+            onInputChange={setChatInput}
+            onSend={handleSend}
+            onAddFiles={handleAddFiles}
+            onRemoveFile={handleRemoveFile}
+            onAddImage={handleAddImage}
+            onRemoveImage={handleRemoveImage}
+          />
         </main>
 
-        {/* ── RIGHT: Export Panel ───────────────────────────────────────── */}
-        <aside className="flex w-64 flex-shrink-0 flex-col overflow-y-auto border-l border-gray-800 p-4">
-          <DownloadButtons
-            doc={generatedDoc}
-            images={inputImages}
-            outputFormat={outputFormat}
-            theme={theme}
-            slideCount={slideCount}
-            useCase={useCase}
-            tokenUsage={tokenUsage}
-            onOutputFormatChange={setOutputFormat}
-            onThemeChange={setTheme}
-            onSlideCountChange={setSlideCount}
-            onUseCaseChange={setUseCase}
-            onGenerate={handleGenerate}
-            isGenerating={isGenerating}
-            customPrompt={customPrompt}
-            onCustomPromptChange={setCustomPrompt}
-          />
+        {/* ── RIGHT: Slide Preview + Export ────────────────────── */}
+        <aside className="flex w-72 flex-shrink-0 flex-col overflow-hidden border-l border-gray-800">
+          {/* Slide outline — top 55% */}
+          <div className="flex flex-col overflow-hidden border-b border-gray-800 px-3 py-3" style={{ flex: "0 0 55%" }}>
+            <p className="mb-2 flex-shrink-0 text-xs font-semibold uppercase tracking-wider text-gray-500">
+              Preview
+            </p>
+            <div className="flex-1 overflow-y-auto">
+              <SlideOutline
+                doc={generatedDoc}
+                isGenerating={isGenerating}
+                streamingText={streamingText}
+              />
+            </div>
+          </div>
+
+          {/* Export settings — bottom 45% */}
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            <DownloadButtons
+              doc={generatedDoc}
+              images={inputImages}
+              outputFormat={outputFormat}
+              theme={theme}
+              slideCount={slideCount}
+              useCase={useCase}
+              tokenUsage={tokenUsage}
+              onOutputFormatChange={setOutputFormat}
+              onThemeChange={setTheme}
+              onSlideCountChange={setSlideCount}
+              onUseCaseChange={setUseCase}
+              onGenerate={handleGenerate}
+              isGenerating={isGenerating}
+              customPrompt={customPrompt}
+              onCustomPromptChange={setCustomPrompt}
+            />
+          </div>
         </aside>
       </div>
 
