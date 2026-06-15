@@ -739,28 +739,31 @@ export async function buildAndDownloadPptx(
     const slide_ = prs.addSlide();
 
     // Hybrid approach:
-    // - If a pre-captured background PNG exists for this slide, use it (instant — captured after generation)
-    // - Otherwise fall back to PptxGenJS shape templates
+    // - If a pre-captured background PNG exists, add it as the FIRST image shape (z-index bottom),
+    //   then overlay editable text objects on top.
+    // - IMPORTANT: Do NOT use slide_.background = { data } — PptxGenJS adds that at write-time
+    //   as the last element, covering all text. Use addImage with x:0,y:0,w/h 100% instead.
     let usedCustomBg = false;
     const bgPng = preCaptures?.[s.slide_number - 1] ?? null;
+
+    // Always set a solid background color first (visible behind transparent areas)
+    slide_.background = { color: tc.background };
+
     if (bgPng) {
-      slide_.background = { data: bgPng };
+      // Add as a full-bleed image shape — first in spTree so text overlays appear on top
+      slide_.addImage({ data: bgPng, x: 0, y: 0, w: "100%", h: "100%" });
       usedCustomBg = true;
     } else if (s.background_html && !preCaptures) {
       // Legacy path: no pre-captures provided — capture now (slower)
       const png = await captureBackground(s.background_html);
       if (png) {
-        slide_.background = { data: png };
+        slide_.addImage({ data: png, x: 0, y: 0, w: "100%", h: "100%" });
         usedCustomBg = true;
       }
     }
 
-    if (!usedCustomBg) {
-      slide_.background = { color: tc.background };
-    }
-
     if (usedCustomBg) {
-      // Text-only editable layer over custom background
+      // Text-only editable layer added AFTER the image → appears on top in PowerPoint
       buildTextOverlay(slide_, s);
     } else {
       // Full PptxGenJS shape + text templates (when no custom bg)

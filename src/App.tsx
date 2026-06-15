@@ -178,6 +178,11 @@ export default function App() {
     localStorage.removeItem(SESSION_KEY);
   };
 
+  // ── Handlers ───────────────────────────────────────────────────────────────
+  const handleAddFiles = useCallback((newFiles: InputFile[]) => {
+    setInputFiles((prev) => [...prev, ...newFiles]);
+  }, []);
+
   // ── Folder Knowledge Base ──────────────────────────────────────────────────
   const handleLoadFolder = useCallback(async () => {
     const result = await loadKnowledgeBaseFolder();
@@ -186,11 +191,6 @@ export default function App() {
     const msg = `📂 Knowledge base loaded: "${result.folderName}" — ${result.files.length} files indexed${result.skippedFiles > 0 ? `, ${result.skippedFiles} skipped` : ""}. The LLM will use this as context.`;
     setChatHistory((prev) => [...prev, { role: "assistant" as const, content: msg }]);
   }, [handleAddFiles]);
-
-  // ── Handlers ───────────────────────────────────────────────────────────────
-  const handleAddFiles = useCallback((newFiles: InputFile[]) => {
-    setInputFiles((prev) => [...prev, ...newFiles]);
-  }, []);
 
   const handleRemoveFile = useCallback((id: string) => {
     setInputFiles((prev) => prev.filter((f) => f.id !== id));
