@@ -250,16 +250,73 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
   }
 }
 
-// ─── JSON parser with retry ───────────────────────────────────────────────────
+// ─── JSON parser with truncation recovery ───────────────────────────────────
 export function parseDocumentJSON(raw: string): DocumentOutput {
-  const cleaned = raw
+  let cleaned = raw
     .replace(/^```json\s*/i, "")
     .replace(/^```\s*/i, "")
     .replace(/```\s*$/i, "")
     .trim();
 
-  const parsed = JSON.parse(cleaned) as DocumentOutput;
+  // First try parsing as-is
+  try {
+    return validateAndNormalize(JSON.parse(cleaned) as DocumentOutput);
+  } catch (firstErr) {
+    // If truncated mid-JSON, attempt recovery:
+    // 1. Close any open string (unterminated string is the most common case)
+    // 2. Close open arrays and objects from the inside out
+    const recovered = attemptRecovery(cleaned);
+    try {
+      return validateAndNormalize(JSON.parse(recovered) as DocumentOutput);
+    } catch {
+      // Re-throw original error with context
+      throw new Error(
+        `JSON parse failed (response may have been truncated). ` +
+        `Try increasing Max Tokens in settings. Original error: ${
+          firstErr instanceof Error ? firstErr.message : String(firstErr)
+        }`
+      );
+    }
+  }
+}
 
+function attemptRecovery(json: string): string {
+  let s = json;
+
+  // Remove trailing comma before closing (common in truncated arrays)
+  s = s.replace(/,\s*$/, "");
+
+  // If there's an unterminated string, close it
+  // Count unescaped quotes to detect open string
+  let inString = false;
+  let i = 0;
+  for (; i < s.length; i++) {
+    if (s[i] === '"' && (i === 0 || s[i - 1] !== "\\")) inString = !inString;
+  }
+  if (inString) s += '"'; // close open string
+
+  // Remove any trailing comma again after closing string
+  s = s.replace(/,\s*$/, "");
+
+  // Count open brackets/braces and close them
+  const stack: string[] = [];
+  inString = false;
+  for (let j = 0; j < s.length; j++) {
+    const ch = s[j];
+    if (ch === '"' && (j === 0 || s[j - 1] !== "\\")) { inString = !inString; continue; }
+    if (inString) continue;
+    if (ch === "{" || ch === "[") stack.push(ch);
+    else if (ch === "}" || ch === "]") stack.pop();
+  }
+  // Close in reverse
+  while (stack.length > 0) {
+    const open = stack.pop()!;
+    s += open === "{" ? "}" : "]";
+  }
+  return s;
+}
+
+function validateAndNormalize(parsed: DocumentOutput): DocumentOutput {
   if (!parsed.title) throw new Error("Missing 'title' in LLM response");
   if (!parsed.document_type) throw new Error("Missing 'document_type' in LLM response");
 
@@ -270,6 +327,5 @@ export function parseDocumentJSON(raw: string): DocumentOutput {
       speaker_notes: s.speaker_notes ?? "",
     }));
   }
-
   return parsed;
 }

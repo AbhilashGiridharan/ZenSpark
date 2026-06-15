@@ -16,7 +16,7 @@ const DEFAULT_CONFIG: AzureConfig = {
   apiKey: "",
   deploymentName: "claude-opus-4-6-demo",
   apiVersion: "",
-  maxTokens: 4096,
+  maxTokens: 16000,
   temperature: 0.7,
   visionDeploymentName: "",
 };
@@ -219,7 +219,7 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
             <div className="grid grid-cols-2 gap-4">
               <Field label={`Max Tokens: ${form.maxTokens}`}>
                 <input
-                  type="range" min={512} max={8192} step={256}
+                  type="range" min={1024} max={32000} step={1000}
                   value={form.maxTokens}
                   onChange={(e) => set("maxTokens", Number(e.target.value))}
                   className="w-full accent-blue-500"
