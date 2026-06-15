@@ -143,6 +143,9 @@ export default function App() {
   const [clarifyAnswers, setClarifyAnswers] = useState<Record<string, string>>({});
   const [isClarifying, setIsClarifying] = useState(false);
   const pendingGoalRef = useRef<string>("");
+  // Snapshot images/files for generation — preserved across async clarify flow
+  const pendingImagesRef = useRef<InputImage[]>([]);
+  const pendingFilesRef = useRef<InputFile[]>([]);
 
   // Restore last session on mount
   useEffect(() => {
@@ -243,7 +246,11 @@ export default function App() {
     });
     setChatInput("");
 
-    const fileTexts = inputFiles.map((f) => ({
+    // Use snapshotted images/files (state was cleared before this call)
+    const snapshotImages = pendingImagesRef.current;
+    const snapshotFiles = pendingFilesRef.current;
+
+    const fileTexts = snapshotFiles.map((f) => ({
       name: f.name,
       content: f.extractedText,
     }));
@@ -254,7 +261,7 @@ export default function App() {
       "",
       outputFormat,
       theme,
-      inputImages.length
+      snapshotImages.length
     );
 
     const abort = new AbortController();
@@ -265,7 +272,7 @@ export default function App() {
         azureConfig,
         getSystemPrompt("custom"),
         userPrompt,
-        inputImages,
+        snapshotImages,
         abort.signal
       )) {
         accumulated += chunk;
@@ -303,6 +310,9 @@ export default function App() {
 
     // Save goal for later use after clarify
     pendingGoalRef.current = goal;
+    // Snapshot images/files BEFORE clearing state so runGenerate can use them
+    pendingImagesRef.current = [...inputImages];
+    pendingFilesRef.current = [...inputFiles];
     const attachments: ChatMessage["attachments"] = [
       ...inputFiles.map((f) => ({ type: "file" as const, name: f.name })),
       ...inputImages.map((img) => ({ type: "image" as const, name: img.name, preview: img.preview })),
