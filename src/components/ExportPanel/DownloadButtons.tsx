@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Download, Presentation, FileText, Image } from "lucide-react";
+import { Download, Presentation, FileText } from "lucide-react";
 import type {
   DocumentOutput,
   InputImage,
@@ -95,33 +95,43 @@ export default function DownloadButtons({
     <div className="flex flex-col gap-3">
       {/* Download buttons */}
       <div className="space-y-2">
-        {/* Visual PPTX — shown whenever HTML slides exist */}
-        {hasHtmlSlides && (outputFormat === "pptx" || outputFormat === "both") && (
-          <DownloadBtn
-            label={
-              downloading === "visual" && visualProgress
-                ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
-                : "Download PPTX (Visual)"
-            }
-            icon={<Image size={15} />}
-            loading={downloading === "visual"}
-            disabled={!!downloading}
-            onClick={handleDownloadVisual}
-            color="violet"
-            description="Looks exactly like the preview"
-          />
-        )}
-        {/* Editable PPTX */}
         {(outputFormat === "pptx" || outputFormat === "both") && (
-          <DownloadBtn
-            label="Download PPTX (Editable)"
-            icon={<Presentation size={15} />}
-            loading={downloading === "pptx"}
-            disabled={!!downloading}
-            onClick={handleDownloadPptx}
-            color="blue"
-            description="Structured text — fully editable in PowerPoint"
-          />
+          <>
+            {/* Primary: Visual PPTX — pixel-perfect match to preview */}
+            {hasHtmlSlides ? (
+              <DownloadBtn
+                label={
+                  downloading === "visual" && visualProgress
+                    ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
+                    : "Download PPTX"
+                }
+                icon={<Presentation size={15} />}
+                loading={downloading === "visual"}
+                disabled={!!downloading}
+                onClick={handleDownloadVisual}
+                color="blue"
+              />
+            ) : (
+              <DownloadBtn
+                label="Download PPTX"
+                icon={<Presentation size={15} />}
+                loading={downloading === "pptx"}
+                disabled={!!downloading}
+                onClick={handleDownloadPptx}
+                color="blue"
+              />
+            )}
+            {/* Secondary: editable fallback — small text link */}
+            {hasHtmlSlides && (
+              <button
+                onClick={handleDownloadPptx}
+                disabled={!!downloading}
+                className="w-full text-center text-[11px] text-gray-600 underline-offset-2 hover:text-gray-400 hover:underline disabled:opacity-40"
+              >
+                Download editable version (text only, no visuals)
+              </button>
+            )}
+          </>
         )}
         {(outputFormat === "docx" || outputFormat === "both") && (
           <DownloadBtn
