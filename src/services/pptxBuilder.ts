@@ -768,3 +768,78 @@ export async function buildAndDownloadPptx(
   const blob = (await prs.write({ outputType: "blob" })) as Blob;
   saveAs(blob, fileName);
 }
+
+// ─── Visual PPTX builder — captures LLM HTML as images ───────────────────────
+// Each slide is rendered exactly as it appears in the browser preview.
+// The result is image-based (not text-editable) but visually identical to the preview.
+export async function buildAndDownloadVisualPptx(
+  doc: DocumentOutput,
+  onProgress?: (done: number, total: number) => void
+): Promise<void> {
+  const slides = doc.slides ?? [];
+  const hasHtml = slides.some((s) => s.html);
+  if (!hasHtml) {
+    // Fall back to editable builder if no HTML was generated
+    return buildAndDownloadPptx(doc, []);
+  }
+
+  const prs = new pptxgen();
+  prs.layout = "LAYOUT_16x9";
+  prs.author = doc.author || "AI Doc Generator";
+  prs.title = doc.title;
+
+  for (let i = 0; i < slides.length; i++) {
+    const s = slides[i];
+    onProgress?.(i, slides.length);
+
+    const slide_ = prs.addSlide();
+
+    if (s.html) {
+      // Render the full HTML slide to a 1920×1080 PNG for retina sharpness
+      const png = await captureSlideHTML(s.html);
+      if (png) {
+        // Single image fills the entire slide — no shapes, no background setter
+        slide_.addImage({ data: png, x: 0, y: 0, w: "100%", h: "100%" });
+      }
+    }
+
+    if (s.speaker_notes) {
+      slide_.addNotes(s.speaker_notes);
+    }
+  }
+
+  onProgress?.(slides.length, slides.length);
+
+  const dateStr = new Date().toISOString().slice(0, 10).replace(/-/g, "");
+  const slug = doc.title.replace(/[^a-z0-9]/gi, "_").slice(0, 30);
+  const fileName = `${slug}_Visual_${dateStr}.pptx`;
+
+  const blob = (await prs.write({ outputType: "blob" })) as Blob;
+  saveAs(blob, fileName);
+}
+
+// ─── Capture a full slide HTML at 2× resolution for crisp PPTX images ────────
+async function captureSlideHTML(html: string): Promise<string | null> {
+  try {
+    const html2canvas = (await import("html2canvas")).default;
+    const container = document.createElement("div");
+    container.style.cssText = [
+      "position:fixed", "top:-9999px", "left:-9999px",
+      "width:960px", "height:540px", "overflow:hidden", "z-index:-9999",
+    ].join(";");
+    // Wrap in a proper 960×540 shell identical to the preview iframe
+    container.innerHTML = `<div style="width:960px;height:540px;overflow:hidden;position:relative;">${sanitizeBgHTML(html)}</div>`;
+    document.body.appendChild(container);
+    try {
+      const canvas = await html2canvas(container, {
+        width: 960, height: 540, scale: 2,
+        useCORS: true, logging: false, backgroundColor: "#ffffff",
+      });
+      return canvas.toDataURL("image/png");
+    } finally {
+      document.body.removeChild(container);
+    }
+  } catch {
+    return null;
+  }
+}

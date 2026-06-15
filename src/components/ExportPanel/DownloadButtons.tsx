@@ -1,12 +1,12 @@
 import { useState } from "react";
-import { Download, Presentation, FileText } from "lucide-react";
+import { Download, Presentation, FileText, Image } from "lucide-react";
 import type {
   DocumentOutput,
   InputImage,
   OutputFormat,
   TokenUsage,
 } from "../../types/document";
-import { buildAndDownloadPptx } from "../../services/pptxBuilder";
+import { buildAndDownloadPptx, buildAndDownloadVisualPptx } from "../../services/pptxBuilder";
 import { buildAndDownloadDocx } from "../../services/docxBuilder";
 
 interface Props {
@@ -22,7 +22,26 @@ export default function DownloadButtons({
   outputFormat,
   tokenUsage,
 }: Props) {
-  const [downloading, setDownloading] = useState<"pptx" | "docx" | null>(null);
+  const [downloading, setDownloading] = useState<"visual" | "pptx" | "docx" | null>(null);
+  const [visualProgress, setVisualProgress] = useState<{ done: number; total: number } | null>(null);
+
+  const hasHtmlSlides = (doc?.slides ?? []).some((s) => s.html);
+
+  const handleDownloadVisual = async () => {
+    if (!doc) return;
+    setDownloading("visual");
+    setVisualProgress({ done: 0, total: doc.slides?.length ?? 0 });
+    try {
+      await buildAndDownloadVisualPptx(doc, (done, total) => {
+        setVisualProgress({ done, total });
+      });
+    } catch (e) {
+      alert(`Visual PPTX failed: ${e instanceof Error ? e.message : String(e)}`);
+    } finally {
+      setDownloading(null);
+      setVisualProgress(null);
+    }
+  };
 
   const handleDownloadPptx = async () => {
     if (!doc) return;
@@ -76,14 +95,32 @@ export default function DownloadButtons({
     <div className="flex flex-col gap-3">
       {/* Download buttons */}
       <div className="space-y-2">
+        {/* Visual PPTX — shown whenever HTML slides exist */}
+        {hasHtmlSlides && (outputFormat === "pptx" || outputFormat === "both") && (
+          <DownloadBtn
+            label={
+              downloading === "visual" && visualProgress
+                ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
+                : "Download PPTX (Visual)"
+            }
+            icon={<Image size={15} />}
+            loading={downloading === "visual"}
+            disabled={!!downloading}
+            onClick={handleDownloadVisual}
+            color="violet"
+            description="Looks exactly like the preview"
+          />
+        )}
+        {/* Editable PPTX */}
         {(outputFormat === "pptx" || outputFormat === "both") && (
           <DownloadBtn
-            label="Download PPTX"
+            label="Download PPTX (Editable)"
             icon={<Presentation size={15} />}
             loading={downloading === "pptx"}
             disabled={!!downloading}
             onClick={handleDownloadPptx}
             color="blue"
+            description="Structured text — fully editable in PowerPoint"
           />
         )}
         {(outputFormat === "docx" || outputFormat === "both") && (
@@ -134,28 +171,36 @@ function DownloadBtn({
   disabled,
   onClick,
   color,
+  description,
 }: {
   label: string;
   icon: React.ReactNode;
   loading: boolean;
   disabled: boolean;
   onClick: () => void;
-  color: "blue" | "indigo" | "purple";
+  color: "blue" | "indigo" | "purple" | "violet";
+  description?: string;
 }) {
   const colors = {
     blue: "border-blue-700 text-blue-400 hover:bg-blue-900/30",
     indigo: "border-indigo-700 text-indigo-400 hover:bg-indigo-900/30",
     purple: "border-purple-700 text-purple-400 hover:bg-purple-900/30",
+    violet: "border-violet-600 bg-violet-900/20 text-violet-300 hover:bg-violet-900/40",
   };
 
   return (
     <button
       onClick={onClick}
       disabled={disabled}
-      className={`flex w-full items-center justify-center gap-2 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${colors[color]}`}
+      className={`flex w-full flex-col items-center justify-center gap-0.5 rounded-lg border px-3 py-2 text-sm font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-40 ${colors[color]}`}
     >
-      {loading ? <Loader2 size={14} className="animate-spin" /> : icon}
-      {label}
+      <span className="flex items-center gap-2">
+        {loading ? <Loader2 size={14} className="animate-spin" /> : icon}
+        {label}
+      </span>
+      {description && (
+        <span className="text-[10px] font-normal opacity-60">{description}</span>
+      )}
     </button>
   );
 }
