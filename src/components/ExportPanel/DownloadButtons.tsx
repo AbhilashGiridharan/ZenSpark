@@ -97,26 +97,39 @@ export default function DownloadButtons({
       <div className="space-y-2">
         {(outputFormat === "pptx" || outputFormat === "both") && (
           <>
-            {/* Primary: Editable PPTX — real PowerPoint shapes/text */}
-            <DownloadBtn
-              label="Download PPTX (Editable)"
-              icon={<Presentation size={15} />}
-              loading={downloading === "pptx"}
-              disabled={!!downloading}
-              onClick={handleDownloadPptx}
-              color="blue"
-              description="Fully editable in PowerPoint"
-            />
-            {/* Secondary: Visual PPTX — pixel-perfect screenshot, only when HTML exists */}
+            {/* Primary: Visual PPTX when HTML exists — pixel-perfect match to preview */}
+            {hasHtmlSlides ? (
+              <DownloadBtn
+                label={
+                  downloading === "visual" && visualProgress
+                    ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
+                    : "Download PPTX"
+                }
+                icon={<Presentation size={15} />}
+                loading={downloading === "visual"}
+                disabled={!!downloading}
+                onClick={handleDownloadVisual}
+                color="blue"
+                description="Looks exactly like the preview"
+              />
+            ) : (
+              <DownloadBtn
+                label="Download PPTX"
+                icon={<Presentation size={15} />}
+                loading={downloading === "pptx"}
+                disabled={!!downloading}
+                onClick={handleDownloadPptx}
+                color="blue"
+              />
+            )}
+            {/* Secondary: Editable — plain PptxGenJS shapes, fully editable in PowerPoint */}
             {hasHtmlSlides && (
               <button
-                onClick={handleDownloadVisual}
+                onClick={handleDownloadPptx}
                 disabled={!!downloading}
                 className="w-full text-center text-[11px] text-gray-600 underline-offset-2 hover:text-gray-400 hover:underline disabled:opacity-40"
               >
-                {downloading === "visual" && visualProgress
-                  ? `Rendering ${visualProgress.done}/${visualProgress.total}…`
-                  : "Download visual version (matches preview, image-based)"}
+                Download editable version (text only, no visuals) →
               </button>
             )}
           </>
