@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Settings, AlertCircle, X, StopCircle, PlusCircle, ImageIcon } from "lucide-react";
+import { Settings, AlertCircle, X, StopCircle, PlusCircle } from "lucide-react";
 import type {
   AzureConfig,
   InputFile,
@@ -25,7 +25,7 @@ import {
   buildUserPrompt,
   getSystemPrompt,
 } from "./services/promptTemplates";
-import { captureBackground } from "./services/pptxBuilder";
+import { buildAndDownloadPptx } from "./services/pptxBuilder";
 import { loadKnowledgeBaseFolder } from "./services/fileExtractor";
 import { generateClarifyingQuestions } from "./services/azureFoundry";
 import type { ClarifyingQuestion } from "./services/azureFoundry";
@@ -138,10 +138,6 @@ export default function App() {
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Pre-captured slide background PNGs (populated after generation, index = slide_number - 1)
-  const [slideBackgrounds, setSlideBackgrounds] = useState<(string | null)[]>([]);
-  const [bgCapture, setBgCapture] = useState<{ done: number; total: number } | null>(null);
-
   // Clarifying questions flow
   const [clarifyingQuestions, setClarifyingQuestions] = useState<ClarifyingQuestion[]>([]);
   const [clarifyAnswers, setClarifyAnswers] = useState<Record<string, string>>({});
@@ -168,33 +164,6 @@ export default function App() {
     }
   }, [chatHistory, generatedDoc, outputFormat, theme]);
 
-  // Pre-capture slide backgrounds after generation/refinement (so download is instant)
-  useEffect(() => {
-    const slides = generatedDoc?.slides ?? [];
-    if (!slides.some((s) => s.background_html)) {
-      setSlideBackgrounds([]);
-      return;
-    }
-    let cancelled = false;
-    const runCapture = async () => {
-      setSlideBackgrounds([]);
-      setBgCapture({ done: 0, total: slides.length });
-      const results: (string | null)[] = [];
-      for (const slide of slides) {
-        if (cancelled) break;
-        results.push(slide.background_html ? await captureBackground(slide.background_html) : null);
-        if (!cancelled) setBgCapture({ done: results.length, total: slides.length });
-      }
-      if (!cancelled) {
-        setSlideBackgrounds(results);
-        setBgCapture(null);
-      }
-    };
-    runCapture();
-    return () => { cancelled = true; setBgCapture(null); };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [generatedDoc]);
-
   const handleNewSession = () => {
     setChatHistory([]);
     setGeneratedDoc(null);
@@ -203,8 +172,6 @@ export default function App() {
     setError(null);
     setInputFiles([]);
     setInputImages([]);
-    setSlideBackgrounds([]);
-    setBgCapture(null);
     setClarifyingQuestions([]);
     setClarifyAnswers({});
     localStorage.removeItem(SESSION_KEY);
@@ -570,14 +537,7 @@ export default function App() {
           <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Slide Preview</p>
             <div className="flex items-center gap-2">
-              {/* Background capture progress */}
-              {bgCapture && (
-                <span className="flex items-center gap-1 rounded-full bg-purple-900/40 px-2 py-0.5 text-xs text-purple-300">
-                  <ImageIcon size={10} className="animate-pulse" />
-                  Rendering {bgCapture.done}/{bgCapture.total}
-                </span>
-              )}
-              {generatedDoc && !bgCapture && (
+              {generatedDoc && (
                 <span className="rounded-full bg-blue-900/40 px-2 py-0.5 text-xs text-blue-400">
                   {(generatedDoc.slides ?? generatedDoc.sections ?? []).length}{" "}
                   {generatedDoc.document_type === "pptx" ? "slides" : "sections"}
@@ -609,8 +569,6 @@ export default function App() {
                 images={inputImages}
                 outputFormat={outputFormat}
                 tokenUsage={tokenUsage}
-                slideBackgrounds={slideBackgrounds}
-                bgCapturing={!!bgCapture}
               />
             </div>
           )}

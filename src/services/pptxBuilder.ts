@@ -723,8 +723,7 @@ function buildTextOverlay(slide_: PptxSlide, s: Slide) {
 // ─── Main PPTX builder ────────────────────────────────────────────────────────
 export async function buildAndDownloadPptx(
   doc: DocumentOutput,
-  images: InputImage[],
-  preCaptures?: (string | null)[]   // pre-captured slide backgrounds (index matches doc.slides)
+  images: InputImage[]
 ): Promise<void> {
   const prs = new pptxgen();
   const tc = THEMES[doc.theme] ?? THEMES.corporate_blue;
@@ -738,48 +737,23 @@ export async function buildAndDownloadPptx(
   for (const s of slides) {
     const slide_ = prs.addSlide();
 
-    // Hybrid approach:
-    // - If a pre-captured background PNG exists, add it as the FIRST image shape (z-index bottom),
-    //   then overlay editable text objects on top.
-    // - IMPORTANT: Do NOT use slide_.background = { data } — PptxGenJS adds that at write-time
-    //   as the last element, covering all text. Use addImage with x:0,y:0,w/h 100% instead.
-    let usedCustomBg = false;
-    const bgPng = preCaptures?.[s.slide_number - 1] ?? null;
-
-    // Always set a solid background color first (visible behind transparent areas)
+    // Always use PptxGenJS native shape/text builders — fully editable, never corrupt.
+    // The LLM-generated `html` field is browser-preview only; `background_html` is unused here.
+    // This is the only reliable path: PptxGenJS writes clean XML directly from structured data.
     slide_.background = { color: tc.background };
 
-    if (bgPng) {
-      // Add as a full-bleed image shape — first in spTree so text overlays appear on top
-      slide_.addImage({ data: bgPng, x: 0, y: 0, w: "100%", h: "100%" });
-      usedCustomBg = true;
-    } else if (s.background_html && !preCaptures) {
-      // Legacy path: no pre-captures provided — capture now (slower)
-      const png = await captureBackground(s.background_html);
-      if (png) {
-        slide_.addImage({ data: png, x: 0, y: 0, w: "100%", h: "100%" });
-        usedCustomBg = true;
-      }
-    }
-
-    if (usedCustomBg) {
-      // Text-only editable layer added AFTER the image → appears on top in PowerPoint
-      buildTextOverlay(slide_, s);
-    } else {
-      // Full PptxGenJS shape + text templates (when no custom bg)
-      switch (s.layout) {
-        case "title":       buildTitleSlide(prs, slide_, s, tc); break;
-        case "bullets":     buildBulletsSlide(slide_, s, tc); break;
-        case "two_column":  buildTwoColumnSlide(slide_, s, tc); break;
-        case "image_caption": buildImageCaptionSlide(slide_, s, tc, images); break;
-        case "table":       buildTableSlide(slide_, s, tc); break;
-        case "quote":       buildQuoteSlide(slide_, s, tc); break;
-        case "section_divider": buildSectionDividerSlide(slide_, s, tc); break;
-        case "agenda":      buildAgendaSlide(slide_, s, tc); break;
-        case "stats":       buildStatsSlide(slide_, s, tc); break;
-        case "closing":     buildClosingSlide(slide_, s, tc); break;
-        default:            buildBulletsSlide(slide_, s, tc);
-      }
+    switch (s.layout) {
+      case "title":             buildTitleSlide(prs, slide_, s, tc); break;
+      case "bullets":           buildBulletsSlide(slide_, s, tc); break;
+      case "two_column":        buildTwoColumnSlide(slide_, s, tc); break;
+      case "image_caption":     buildImageCaptionSlide(slide_, s, tc, images); break;
+      case "table":             buildTableSlide(slide_, s, tc); break;
+      case "quote":             buildQuoteSlide(slide_, s, tc); break;
+      case "section_divider":   buildSectionDividerSlide(slide_, s, tc); break;
+      case "agenda":            buildAgendaSlide(slide_, s, tc); break;
+      case "stats":             buildStatsSlide(slide_, s, tc); break;
+      case "closing":           buildClosingSlide(slide_, s, tc); break;
+      default:                  buildBulletsSlide(slide_, s, tc);
     }
 
     if (s.speaker_notes) {
