@@ -309,6 +309,8 @@ export default function App() {
     ];
     setChatHistory([{ role: "user", content: goal, timestamp: new Date(), ...(attachments.length ? { attachments } : {}) }]);
     setChatInput("");
+    setInputFiles([]);
+    setInputImages([]);
 
     // Ask clarifying questions first
     setIsClarifying(true);
@@ -363,6 +365,8 @@ export default function App() {
     const updatedHistory = [...chatHistory, userMsg];
     setChatHistory(updatedHistory);
     setChatInput("");
+    setInputFiles([]);
+    setInputImages([]);
     setIsRefining(true);
     setError(null);
 
