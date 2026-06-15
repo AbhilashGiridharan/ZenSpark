@@ -38,7 +38,8 @@ export async function* generateDocumentStream(
   config: AzureConfig,
   systemPrompt: string,
   userPrompt: string,
-  images: InputImage[]
+  images: InputImage[],
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const client = createAzureClient(config);
 
@@ -56,9 +57,10 @@ export async function* generateDocumentStream(
     stream: true,
     max_tokens: config.maxTokens,
     temperature: config.temperature,
-  });
+  }, { signal });
 
   for await (const chunk of stream) {
+    if (signal?.aborted) break;
     const delta = chunk.choices[0]?.delta?.content ?? "";
     if (delta) yield delta;
   }
@@ -70,7 +72,8 @@ export async function* refineDocumentStream(
   currentDoc: DocumentOutput,
   chatHistory: ChatMessage[],
   newInstruction: string,
-  images: InputImage[]
+  images: InputImage[],
+  signal?: AbortSignal
 ): AsyncGenerator<string> {
   const client = createAzureClient(config);
 
@@ -102,9 +105,10 @@ Return ONLY valid JSON — no markdown, no code fences, no explanation.`;
     stream: true,
     max_tokens: config.maxTokens,
     temperature: config.temperature,
-  });
+  }, { signal });
 
   for await (const chunk of stream) {
+    if (signal?.aborted) break;
     const delta = chunk.choices[0]?.delta?.content ?? "";
     if (delta) yield delta;
   }

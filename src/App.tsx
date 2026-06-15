@@ -1,5 +1,5 @@
-import { useState, useCallback, useEffect } from "react";
-import { Settings, AlertCircle, X } from "lucide-react";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { Settings, AlertCircle, X, StopCircle } from "lucide-react";
 import type {
   AzureConfig,
   InputFile,
@@ -54,6 +54,12 @@ export default function App() {
   // ── Generation state ───────────────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
+  const abortRef = useRef<AbortController | null>(null);
+
+  const handleStop = () => {
+    abortRef.current?.abort();
+    abortRef.current = null;
+  };
   const [streamingText, setStreamingText] = useState("");
   const [generatedDoc, setGeneratedDoc] = useState<DocumentOutput | null>(null);
   const [chatHistory, setChatHistory] = useState<ChatMessage[]>([]);
@@ -119,13 +125,16 @@ export default function App() {
       inputImages.length
     );
 
+    const abort = new AbortController();
+    abortRef.current = abort;
     let accumulated = "";
     try {
       for await (const chunk of generateDocumentStream(
         azureConfig,
         getSystemPrompt(useCase),
         userPrompt,
-        inputImages
+        inputImages,
+        abort.signal
       )) {
         accumulated += chunk;
         setStreamingText(accumulated);
@@ -145,8 +154,11 @@ export default function App() {
         totalTokens: Math.round((promptChars + accumulated.length) / 4),
       });
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      if ((err as Error).name !== "AbortError") {
+        setError(err instanceof Error ? err.message : String(err));
+      }
     } finally {
+      abortRef.current = null;
       setIsGenerating(false);
     }
   };
@@ -161,6 +173,8 @@ export default function App() {
     setIsRefining(true);
     setError(null);
 
+    const abort = new AbortController();
+    abortRef.current = abort;
     let accumulated = "";
     try {
       for await (const chunk of refineDocumentStream(
@@ -168,7 +182,8 @@ export default function App() {
         generatedDoc,
         updatedHistory,
         userMsg.content,
-        inputImages
+        inputImages,
+        abort.signal
       )) {
         accumulated += chunk;
       }
@@ -180,13 +195,16 @@ export default function App() {
         { role: "assistant", content: "Done — document updated." },
       ]);
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
-      setChatHistory((prev) => [
-        ...prev,
-        { role: "assistant", content: `Error: ${msg}` },
-      ]);
+      if ((err as Error).name !== "AbortError") {
+        const msg = err instanceof Error ? err.message : String(err);
+        setError(msg);
+        setChatHistory((prev) => [
+          ...prev,
+          { role: "assistant", content: `Error: ${msg}` },
+        ]);
+      }
     } finally {
+      abortRef.current = null;
       setIsRefining(false);
     }
   };
@@ -215,23 +233,34 @@ export default function App() {
             <p className="text-xs text-gray-500">Powered by Azure AI Foundry</p>
           </div>
         </div>
-        <button
-          onClick={() => setShowSettings(true)}
-          className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
-            azureConfig
-              ? "border-gray-700 text-gray-400 hover:border-gray-500"
-              : "border-amber-600 text-amber-400 hover:border-amber-500"
-          }`}
-        >
-          <Settings size={13} />
-          {azureConfig ? "Settings" : "Configure Azure"}
-        </button>
+        <div className="flex items-center gap-2">
+          {(isGenerating || isRefining) && (
+            <button
+              onClick={handleStop}
+              className="flex items-center gap-1.5 rounded-lg border border-red-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/20"
+            >
+              <StopCircle size={13} />
+              Stop
+            </button>
+          )}
+          <button
+            onClick={() => setShowSettings(true)}
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+              azureConfig
+                ? "border-gray-700 text-gray-400 hover:border-gray-500"
+                : "border-amber-600 text-amber-400 hover:border-amber-500"
+            }`}
+          >
+            <Settings size={13} />
+            {azureConfig ? "Settings" : "Configure Azure"}
+          </button>
+        </div>
       </header>
 
       {/* Progress bar — visible whenever generating or refining */}
       {(isGenerating || isRefining) && (
-        <div className="h-0.5 w-full flex-shrink-0 overflow-hidden bg-gray-800">
-          <div className="h-full animate-[shimmer_1.5s_ease-in-out_infinite] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
+        <div className="relative h-1 w-full flex-shrink-0 overflow-hidden bg-gray-800">
+          <div className="absolute inset-y-0 w-1/3 animate-[shimmer_1.2s_linear_infinite] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
         </div>
       )}
 
