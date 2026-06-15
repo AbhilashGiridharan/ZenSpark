@@ -11,12 +11,6 @@ const API_VERSIONS = [
   "2024-02-01",
 ];
 
-interface Props {
-  config: AzureConfig | null;
-  onSave: (config: AzureConfig) => void;
-  onClose: () => void;
-}
-
 const DEFAULT_CONFIG: AzureConfig = {
   endpoint: "",
   apiKey: "",
@@ -27,14 +21,22 @@ const DEFAULT_CONFIG: AzureConfig = {
   visionDeploymentName: "",
 };
 
-export default function AzureSettings({ config, onSave, onClose }: Props) {
-  const [form, setForm] = useState<AzureConfig>(config ?? DEFAULT_CONFIG);
+interface Props {
+  initialConfig: AzureConfig | null;
+  onSave: (config: AzureConfig) => void;
+  onClose: () => void;
+}
+
+const INPUT_CLS = "w-full rounded-lg border border-gray-700 bg-gray-800/60 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+
+export default function AzureSettings({ initialConfig, onSave, onClose }: Props) {
+  const [form, setForm] = useState<AzureConfig>(initialConfig ?? DEFAULT_CONFIG);
   const [testStatus, setTestStatus] = useState<"idle" | "testing" | "ok" | "error">("idle");
   const [testMessage, setTestMessage] = useState("");
 
   // Load from sessionStorage on mount
   useEffect(() => {
-    if (!config) {
+    if (!initialConfig) {
       const saved = sessionStorage.getItem(SESSION_KEY);
       if (saved) {
         try {
@@ -42,7 +44,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
         } catch { /* ignore */ }
       }
     }
-  }, [config]);
+  }, [initialConfig]);
 
   const set = (field: keyof AzureConfig, value: string | number) => {
     setForm((f) => ({ ...f, [field]: value }));
@@ -68,10 +70,8 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
   };
 
   const handleSave = () => {
-    // Store in sessionStorage (cleared on tab close)
     sessionStorage.setItem(SESSION_KEY, JSON.stringify(form));
     onSave(form);
-    onClose();
   };
 
   return (
@@ -96,7 +96,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
               value={form.endpoint}
               onChange={(e) => set("endpoint", e.target.value)}
               placeholder="https://your-resource.openai.azure.com/"
-              className="input"
+              className={INPUT_CLS}
             />
           </Field>
 
@@ -106,7 +106,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
               value={form.apiKey}
               onChange={(e) => set("apiKey", e.target.value)}
               placeholder="••••••••••••••••"
-              className="input"
+              className={INPUT_CLS}
             />
           </Field>
 
@@ -117,7 +117,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
                 value={form.deploymentName}
                 onChange={(e) => set("deploymentName", e.target.value)}
                 placeholder="claude-3-5-sonnet"
-                className="input"
+                className={INPUT_CLS}
               />
             </Field>
 
@@ -125,7 +125,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
               <select
                 value={form.apiVersion}
                 onChange={(e) => set("apiVersion", e.target.value)}
-                className="input"
+                className={INPUT_CLS}
               >
                 {API_VERSIONS.map((v) => (
                   <option key={v} value={v}>{v}</option>
@@ -140,7 +140,7 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
               value={form.visionDeploymentName}
               onChange={(e) => set("visionDeploymentName", e.target.value)}
               placeholder="gpt-4o (leave blank to use main model)"
-              className="input"
+              className={INPUT_CLS}
             />
           </Field>
 
@@ -165,13 +165,20 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
             </Field>
           </div>
 
-          {/* Test connection */}
-          {testMessage && (
-            <div className={`flex items-center gap-2 rounded-lg px-3 py-2 text-sm ${testStatus === "ok" ? "bg-green-900/40 text-green-300" : "bg-red-900/40 text-red-300"}`}>
-              {testStatus === "ok" ? <CheckCircle size={14} /> : <AlertCircle size={14} />}
-              {testMessage}
+          {/* Test connection result */}
+          <div className={`rounded-lg border px-4 py-3 text-sm transition-all ${
+            testStatus === "idle"   ? "border-gray-800 bg-gray-800/30 text-gray-600" :
+            testStatus === "testing"? "border-blue-800 bg-blue-950/40 text-blue-300" :
+            testStatus === "ok"     ? "border-green-700 bg-green-950/50 text-green-300" :
+                                      "border-red-700 bg-red-950/40 text-red-300"
+          }`}>
+            <div className="flex items-center gap-2">
+              {testStatus === "idle"    && <span className="text-gray-600">Run "Test Connection" to verify your settings before saving.</span>}
+              {testStatus === "testing" && <><Loader2 size={15} className="animate-spin" /> Connecting to Azure AI Foundry…</>}
+              {testStatus === "ok"      && <><CheckCircle size={15} className="text-green-400" /> <strong>Connected!</strong> — Model responded successfully. You can now save.</>}
+              {testStatus === "error"   && <><AlertCircle size={15} className="text-red-400" /> <span>{testMessage}</span></>}
             </div>
-          )}
+          </div>
         </div>
 
         {/* Footer */}
@@ -179,10 +186,18 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
           <button
             onClick={handleTest}
             disabled={testStatus === "testing"}
-            className="flex items-center gap-2 rounded-lg border border-gray-600 px-4 py-2 text-sm text-gray-300 hover:border-blue-500 hover:text-blue-400 disabled:opacity-50"
+            className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
+              testStatus === "ok"
+                ? "border-green-700 text-green-400 hover:border-green-500"
+                : "border-gray-600 text-gray-300 hover:border-blue-500 hover:text-blue-400"
+            }`}
           >
-            {testStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> : null}
-            Test Connection
+            {testStatus === "testing" ? (
+              <Loader2 size={14} className="animate-spin" />
+            ) : testStatus === "ok" ? (
+              <CheckCircle size={14} />
+            ) : null}
+            {testStatus === "testing" ? "Testing…" : testStatus === "ok" ? "Tested ✓" : "Test Connection"}
           </button>
 
           <div className="flex gap-2">
@@ -191,9 +206,12 @@ export default function AzureSettings({ config, onSave, onClose }: Props) {
             </button>
             <button
               onClick={handleSave}
-              className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500"
+              disabled={testStatus !== "ok"}
+              title={testStatus !== "ok" ? "Test the connection first" : undefined}
+              className="flex items-center gap-2 rounded-lg bg-blue-600 px-4 py-2 text-sm font-medium text-white hover:bg-blue-500 disabled:cursor-not-allowed disabled:opacity-40"
             >
-              Save Settings
+              <CheckCircle size={14} />
+              Save & Connect
             </button>
           </div>
         </div>

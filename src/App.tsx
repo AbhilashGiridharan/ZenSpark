@@ -247,12 +247,15 @@ export default function App() {
             onClick={() => setShowSettings(true)}
             className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
               azureConfig
-                ? "border-gray-700 text-gray-400 hover:border-gray-500"
+                ? "border-green-800 text-green-400 hover:border-green-600"
                 : "border-amber-600 text-amber-400 hover:border-amber-500"
             }`}
           >
-            <Settings size={13} />
-            {azureConfig ? "Settings" : "Configure Azure"}
+            {azureConfig ? (
+              <><span className="h-1.5 w-1.5 rounded-full bg-green-400" /><Settings size={13} /> Connected</>
+            ) : (
+              <><Settings size={13} /> Configure Azure</>
+            )}
           </button>
         </div>
       </header>
