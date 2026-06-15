@@ -1,4 +1,4 @@
-import { useRef, useEffect, useState, useCallback } from "react";
+import { useRef, useEffect, useState } from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import type { Slide } from "../../types/document";
 
@@ -27,15 +27,22 @@ function writeSlideHTML(iframe: HTMLIFrameElement, html: string) {
 export default function HTMLSlidePreview({ slides }: Props) {
   const [current, setCurrent] = useState(0);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const slideAreaRef = useRef<HTMLDivElement>(null);
   const [scale, setScale] = useState(1);
+  const [offset, setOffset] = useState({ x: 0, y: 0 });
 
-  // Compute scale whenever container resizes
+  // Scale to fill available area (fit inside, centered)
   useEffect(() => {
-    const el = containerRef.current;
+    const el = slideAreaRef.current;
     if (!el) return;
     const observer = new ResizeObserver(([entry]) => {
-      setScale(entry.contentRect.width / SLIDE_W);
+      const { width, height } = entry.contentRect;
+      const s = Math.min(width / SLIDE_W, height / SLIDE_H);
+      setScale(s);
+      setOffset({
+        x: Math.round((width - SLIDE_W * s) / 2),
+        y: Math.round((height - SLIDE_H * s) / 2),
+      });
     });
     observer.observe(el);
     return () => observer.disconnect();
@@ -43,7 +50,6 @@ export default function HTMLSlidePreview({ slides }: Props) {
 
   const slide = slides[current];
 
-  // Render current slide into iframe
   useEffect(() => {
     if (!iframeRef.current || !slide?.html) return;
     writeSlideHTML(iframeRef.current, slide.html);
@@ -54,26 +60,28 @@ export default function HTMLSlidePreview({ slides }: Props) {
   const prev = () => setCurrent((c) => Math.max(0, c - 1));
   const next = () => setCurrent((c) => Math.min(slides.length - 1, c + 1));
 
-  const handleKey = useCallback((e: React.KeyboardEvent) => {
-    if (e.key === "ArrowLeft") prev();
-    if (e.key === "ArrowRight") next();
-  }, []);
-
-  const scaledH = Math.round(SLIDE_H * scale);
-
   return (
-    <div className="flex flex-col gap-2" onKeyDown={handleKey} tabIndex={0}>
-      {/* ── Main slide viewer ── */}
+    <div
+      className="flex h-full flex-col gap-2 outline-none"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "ArrowLeft") prev();
+        if (e.key === "ArrowRight") next();
+      }}
+    >
+      {/* ── Main slide area — fills remaining height ── */}
       <div
-        ref={containerRef}
-        className="w-full overflow-hidden rounded-lg border border-gray-700 bg-black shadow-xl"
-        style={{ height: scaledH || undefined }}
+        ref={slideAreaRef}
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-700 bg-gray-950 shadow-xl"
       >
         <iframe
           ref={iframeRef}
           title={`Slide ${current + 1}`}
           sandbox="allow-same-origin"
           style={{
+            position: "absolute",
+            top: offset.y,
+            left: offset.x,
             width: SLIDE_W,
             height: SLIDE_H,
             border: "none",
@@ -85,7 +93,7 @@ export default function HTMLSlidePreview({ slides }: Props) {
       </div>
 
       {/* ── Navigation bar ── */}
-      <div className="flex items-center gap-2 px-0.5">
+      <div className="flex flex-shrink-0 items-center gap-1 px-0.5">
         <button
           onClick={prev}
           disabled={current === 0}
@@ -93,18 +101,16 @@ export default function HTMLSlidePreview({ slides }: Props) {
         >
           <ChevronLeft size={16} />
         </button>
-
         <div className="flex-1 text-center">
           <span className="text-xs font-medium text-gray-400">
             {current + 1} <span className="text-gray-700">/</span> {slides.length}
           </span>
           {slide?.title && (
-            <span className="ml-2 max-w-[200px] truncate text-xs text-gray-600">
+            <span className="ml-2 max-w-[180px] truncate align-middle text-xs text-gray-600">
               {slide.title}
             </span>
           )}
         </div>
-
         <button
           onClick={next}
           disabled={current === slides.length - 1}
@@ -115,7 +121,7 @@ export default function HTMLSlidePreview({ slides }: Props) {
       </div>
 
       {/* ── Thumbnail strip ── */}
-      <div className="flex gap-1.5 overflow-x-auto pb-1 pr-1">
+      <div className="flex flex-shrink-0 gap-1.5 overflow-x-auto pb-1">
         {slides.map((s, i) => (
           <ThumbButton
             key={s.slide_number}

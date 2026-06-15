@@ -90,6 +90,38 @@ export default function App() {
   const [outputFormat, setOutputFormat] = useState<OutputFormat>("pptx");
   const [theme, setTheme] = useState<ThemeOption>("corporate_blue");
 
+  // ── Right panel resize ────────────────────────────────────────────────────
+  const [rightWidth, setRightWidth] = useState(520);
+  const resizeDrag = useRef<{ startX: number; startW: number } | null>(null);
+
+  useEffect(() => {
+    const onMove = (e: MouseEvent) => {
+      if (!resizeDrag.current) return;
+      const dx = resizeDrag.current.startX - e.clientX;
+      const newW = Math.max(360, Math.min(Math.round(window.innerWidth * 0.78), resizeDrag.current.startW + dx));
+      setRightWidth(newW);
+    };
+    const onUp = () => {
+      if (!resizeDrag.current) return;
+      resizeDrag.current = null;
+      document.body.style.cursor = "";
+      document.body.style.userSelect = "";
+    };
+    document.addEventListener("mousemove", onMove);
+    document.addEventListener("mouseup", onUp);
+    return () => {
+      document.removeEventListener("mousemove", onMove);
+      document.removeEventListener("mouseup", onUp);
+    };
+  }, []);
+
+  const handleResizeMouseDown = (e: React.MouseEvent) => {
+    resizeDrag.current = { startX: e.clientX, startW: rightWidth };
+    document.body.style.cursor = "ew-resize";
+    document.body.style.userSelect = "none";
+    e.preventDefault();
+  };
+
   // ── Generation state ───────────────────────────────────────────────────────
   const [isGenerating, setIsGenerating] = useState(false);
   const [isRefining, setIsRefining] = useState(false);
@@ -494,7 +526,7 @@ export default function App() {
       {/* Two-panel body */}
       <div className="flex flex-1 overflow-hidden">
         {/* ── LEFT / MAIN: Chat Panel ───────────────────────────── */}
-        <main className="flex flex-1 flex-col overflow-hidden">
+        <main className="flex min-w-0 flex-1 flex-col overflow-hidden">
           <ChatRefinement
             history={chatHistory}
             input={chatInput}
@@ -520,8 +552,18 @@ export default function App() {
           />
         </main>
 
+        {/* ── Resize handle ─────────────────────────────────────── */}
+        <div
+          onMouseDown={handleResizeMouseDown}
+          className="group flex w-1 flex-shrink-0 cursor-ew-resize items-center justify-center bg-gray-800 hover:bg-blue-600 transition-colors"
+          title="Drag to resize"
+        />
+
         {/* ── RIGHT: Slide Preview + Downloads ──────────────────── */}
-        <aside className="flex w-[420px] flex-shrink-0 flex-col overflow-hidden border-l border-gray-800">
+        <aside
+          className="flex flex-shrink-0 flex-col overflow-hidden"
+          style={{ width: rightWidth }}
+        >
           {/* Header */}
           <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2.5">
             <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Slide Preview</p>
@@ -542,17 +584,18 @@ export default function App() {
             </div>
           </div>
 
-          {/* Slide outline — scrollable, takes available space */}
-          <div className="flex-1 overflow-y-auto px-4 py-3">
-            {/* Show HTML slide viewer when LLM generated HTML, otherwise fallback list */}
+          {/* Slide viewer — fills remaining height */}
+          <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
             {generatedDoc?.slides?.some((s) => s.html) ? (
               <HTMLSlidePreview slides={generatedDoc.slides ?? []} />
             ) : (
-              <SlideOutline
-                doc={generatedDoc}
-                isGenerating={isGenerating}
-                streamingText={streamingText}
-              />
+              <div className="flex-1 overflow-y-auto">
+                <SlideOutline
+                  doc={generatedDoc}
+                  isGenerating={isGenerating}
+                  streamingText={streamingText}
+                />
+              </div>
             )}
           </div>
 
