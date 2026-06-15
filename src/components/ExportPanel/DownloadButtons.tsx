@@ -14,6 +14,8 @@ interface Props {
   images: InputImage[];
   outputFormat: OutputFormat;
   tokenUsage: TokenUsage | null;
+  slideBackgrounds?: (string | null)[];
+  bgCapturing?: boolean;
 }
 
 export default function DownloadButtons({
@@ -21,6 +23,8 @@ export default function DownloadButtons({
   images,
   outputFormat,
   tokenUsage,
+  slideBackgrounds = [],
+  bgCapturing = false,
 }: Props) {
   const [downloading, setDownloading] = useState<"pptx" | "docx" | null>(null);
 
@@ -28,7 +32,7 @@ export default function DownloadButtons({
     if (!doc) return;
     setDownloading("pptx");
     try {
-      await buildAndDownloadPptx(doc, images);
+      await buildAndDownloadPptx(doc, images, slideBackgrounds.length ? slideBackgrounds : undefined);
     } catch (e) {
       alert(`PPTX generation failed: ${e instanceof Error ? e.message : String(e)}`);
     } finally {
@@ -52,7 +56,7 @@ export default function DownloadButtons({
     if (!doc) return;
     setDownloading("pptx");
     try {
-      await buildAndDownloadPptx(doc, images);
+      await buildAndDownloadPptx(doc, images, slideBackgrounds.length ? slideBackgrounds : undefined);
       await buildAndDownloadDocx(doc, images);
     } catch (e) {
       alert(`Generation failed: ${e instanceof Error ? e.message : String(e)}`);
@@ -78,10 +82,10 @@ export default function DownloadButtons({
       <div className="space-y-2">
         {(outputFormat === "pptx" || outputFormat === "both") && (
           <DownloadBtn
-            label="Download PPTX"
+            label={bgCapturing ? "Rendering backgrounds…" : "Download PPTX"}
             icon={<Presentation size={15} />}
             loading={downloading === "pptx"}
-            disabled={!!downloading}
+            disabled={!!downloading || bgCapturing}
             onClick={handleDownloadPptx}
             color="blue"
           />

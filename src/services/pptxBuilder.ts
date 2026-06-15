@@ -557,8 +557,21 @@ function buildClosingSlide(
   });
 }
 
+// ─── Sanitize LLM HTML before rendering — strip anything that could navigate ─
+function sanitizeBgHTML(html: string): string {
+  return html
+    .replace(/<script[\s\S]*?<\/script>/gi, "")
+    .replace(/<link[^>]*>/gi, "")
+    .replace(/<meta[^>]*>/gi, "")
+    .replace(/<form[\s\S]*?<\/form>/gi, "")
+    .replace(/on\w+\s*=\s*(["'])[^\1]*\1/gi, "")      // strip event handlers
+    .replace(/javascript\s*:/gi, "#")                   // strip js: hrefs
+    .replace(/href\s*=\s*(["'])(?!#)[^\1]*\1/gi, 'href="#"'); // neutralize links
+}
+
 // ─── Capture decorative background HTML via html2canvas ──────────────────────
-async function captureBackground(html: string): Promise<string | null> {
+// Exported so App.tsx can pre-capture after generation (keeping download instant)
+export async function captureBackground(html: string): Promise<string | null> {
   try {
     const html2canvas = (await import("html2canvas")).default;
     const container = document.createElement("div");
@@ -566,7 +579,7 @@ async function captureBackground(html: string): Promise<string | null> {
       "position:fixed", "top:-9999px", "left:-9999px",
       "width:960px", "height:540px", "overflow:hidden", "z-index:-1",
     ].join(";");
-    container.innerHTML = html;
+    container.innerHTML = sanitizeBgHTML(html);
     document.body.appendChild(container);
     try {
       const canvas = await html2canvas(container, {
@@ -710,7 +723,8 @@ function buildTextOverlay(slide_: PptxSlide, s: Slide) {
 // ─── Main PPTX builder ────────────────────────────────────────────────────────
 export async function buildAndDownloadPptx(
   doc: DocumentOutput,
-  images: InputImage[]
+  images: InputImage[],
+  preCaptures?: (string | null)[]   // pre-captured slide backgrounds (index matches doc.slides)
 ): Promise<void> {
   const prs = new pptxgen();
   const tc = THEMES[doc.theme] ?? THEMES.corporate_blue;
@@ -724,14 +738,19 @@ export async function buildAndDownloadPptx(
   for (const s of slides) {
     const slide_ = prs.addSlide();
 
-    // Hybrid approach: capture LLM decorative background → set as slide bg image,
-    // then overlay editable text objects on top (fully editable in PowerPoint).
-    // Falls back to full PptxGenJS template rendering if no background_html.
+    // Hybrid approach:
+    // - If a pre-captured background PNG exists for this slide, use it (instant — captured after generation)
+    // - Otherwise fall back to PptxGenJS shape templates
     let usedCustomBg = false;
-    if (s.background_html) {
-      const bgPng = await captureBackground(s.background_html);
-      if (bgPng) {
-        slide_.background = { data: bgPng };
+    const bgPng = preCaptures?.[s.slide_number - 1] ?? null;
+    if (bgPng) {
+      slide_.background = { data: bgPng };
+      usedCustomBg = true;
+    } else if (s.background_html && !preCaptures) {
+      // Legacy path: no pre-captures provided — capture now (slower)
+      const png = await captureBackground(s.background_html);
+      if (png) {
+        slide_.background = { data: png };
         usedCustomBg = true;
       }
     }

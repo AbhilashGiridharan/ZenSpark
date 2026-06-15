@@ -23,24 +23,76 @@ const LAYOUT_ICONS: Record<string, string> = {
   section_divider: "─",
   agenda: "📑",
   closing: "✅",
+  stats: "📈",
 };
+
+// Extract partial slide info from streaming JSON
+function extractStreamingSlides(text: string) {
+  const result: Array<{ num: number; title: string; layout: string }> = [];
+  const re = /"slide_number"\s*:\s*(\d+)/g;
+  let m;
+  while ((m = re.exec(text)) !== null) {
+    const num = parseInt(m[1]);
+    const snippet = text.slice(m.index, Math.min(m.index + 700, text.length));
+    const titleM = /"title"\s*:\s*"((?:[^"\\]|\\.)*)"/g.exec(snippet);
+    const layoutM = /"layout"\s*:\s*"([a-z_]+)"/g.exec(snippet);
+    result.push({
+      num,
+      title: titleM ? titleM[1].replace(/\\"/g, '"') : `Slide ${num}`,
+      layout: layoutM ? layoutM[1] : "bullets",
+    });
+  }
+  return result;
+}
 
 export default function SlideOutline({ doc, isGenerating, streamingText }: Props) {
   const [expanded, setExpanded] = useState<number | null>(null);
 
-  // ── Streaming state ────────────────────────────────────────────────────────
+  // ── Streaming state: show extracted slide cards live ─────────────────────
   if (isGenerating) {
+    const partialSlides = extractStreamingSlides(streamingText);
     return (
-      <div className="flex h-full flex-col">
-        <div className="mb-3 flex items-center gap-2">
-          <SlidersHorizontal size={14} className="text-blue-400" />
-          <span className="text-sm font-medium text-gray-300">Generating…</span>
+      <div className="flex h-full flex-col gap-2">
+        <div className="flex items-center gap-2">
+          <SlidersHorizontal size={14} className="text-blue-400 animate-pulse" />
+          <span className="text-sm font-medium text-gray-300">
+            Generating
+            {partialSlides.length > 0 ? ` — ${partialSlides.length} slides so far…` : "…"}
+          </span>
         </div>
-        <div className="flex-1 overflow-y-auto rounded-lg border border-gray-800 bg-gray-900/50 p-3">
-          <pre className="streaming-cursor whitespace-pre-wrap break-words text-xs leading-relaxed text-gray-400">
-            {streamingText || "Waiting for response…"}
-          </pre>
-        </div>
+        {partialSlides.length === 0 ? (
+          <div className="flex flex-1 flex-col items-center justify-center gap-3">
+            {[...Array(5)].map((_, i) => (
+              <div
+                key={i}
+                className="w-full h-10 rounded-lg bg-gray-800/60 animate-pulse"
+                style={{ opacity: 1 - i * 0.15 }}
+              />
+            ))}
+            <p className="text-xs text-gray-600">Waiting for slides…</p>
+          </div>
+        ) : (
+          <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 pr-1">
+            {partialSlides.map((s, i) => (
+              <div
+                key={s.num}
+                className="flex items-center gap-2.5 rounded-lg border border-gray-800 bg-gray-900/60 px-3 py-2"
+                style={{ animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}
+              >
+                <span className="flex-shrink-0 text-sm">
+                  {LAYOUT_ICONS[s.layout] ?? "📋"}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="truncate text-xs font-medium text-gray-300">{s.title}</p>
+                  <p className="text-[10px] text-gray-600 capitalize">{s.layout.replace("_", " ")}</p>
+                </div>
+                <span className="flex-shrink-0 text-[10px] text-gray-700">#{s.num}</span>
+              </div>
+            ))}
+            {/* pulse card for next incoming slide */}
+            <div className="h-9 w-full animate-pulse rounded-lg bg-gray-800/40" />
+          </div>
+        )}
       </div>
     );
   }
