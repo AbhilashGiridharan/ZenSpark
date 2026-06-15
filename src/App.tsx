@@ -446,14 +446,14 @@ export default function App() {
 
   const handleSend = () => {
     if (!chatInput.trim()) return;
-    if (!generatedDoc) {
-      if (isDocCreationIntent(chatInput)) {
-        handleGenerate();
-      } else {
-        handleChatSend(null); // free conversational chat, no doc context
-      }
+    // Always route through handleGenerate when user clearly wants to create/generate
+    // a new document — regardless of whether one is already open
+    if (isDocCreationIntent(chatInput)) {
+      handleGenerate();
+    } else if (!generatedDoc) {
+      handleChatSend(null); // free conversational chat, no doc context
     } else {
-      handleChatSend();
+      handleChatSend(); // dual-mode: edit existing doc or converse
     }
   };
 

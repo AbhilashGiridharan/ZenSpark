@@ -378,10 +378,12 @@ Decide how to respond based on the user's message:
 1. GENERAL CONVERSATION — if the user is asking a question, having a discussion, requesting advice, brainstorming, or anything not directly modifying the presentation:
    → Respond naturally in plain text. Be helpful, concise, and thoughtful.
 
-2. DOCUMENT EDIT — if the user explicitly wants to change, update, add, remove, or restructure slides in the open presentation:
-   → Return ONLY valid JSON of the complete updated document. No text before or after. No markdown. No code fences. Your response must start with { and end with }.
+2. DOCUMENT EDIT or CREATION — if the user wants to change, update, add, remove, restructure slides, OR create/generate a new presentation:
+   → Return ONLY valid JSON of the complete document. No text before or after. No markdown. No code fences. Your response must start with { and end with }.
+   → The JSON MUST always include ALL top-level fields: "title", "document_type" ("pptx"), "theme", "author", "date", "slides".
+   → Each slide MUST include: slide_number, layout, title, html, background_html, speaker_notes, and any content fields for that layout (bullets, stat_cards, etc.).
 
-When in document-edit mode, apply the same rules as before:
+When in document-edit mode:
 - If a specific slide is referenced, update ONLY that slide.
 - Keep all other slides exactly as-is.
 - Return ALL slides in the JSON — no slides may be omitted.
@@ -516,13 +518,22 @@ function attemptRecovery(json: string): string {
 }
 
 function validateAndNormalize(parsed: DocumentOutput): DocumentOutput {
-  if (!parsed.title) throw new Error("Missing 'title' in LLM response");
-  if (!parsed.document_type) throw new Error("Missing 'document_type' in LLM response");
+  // Apply defaults rather than throwing — LLM sometimes omits top-level fields
+  // (especially in chat-edit mode where it only generates slides array)
+  if (!parsed.title) {
+    // Try to extract a title from the first slide
+    const firstSlideTitle = parsed.slides?.[0]?.title;
+    parsed.title = firstSlideTitle ?? "Untitled Presentation";
+  }
+  if (!parsed.document_type) parsed.document_type = "pptx";
+  if (!parsed.theme) parsed.theme = "corporate_blue";
 
   if (parsed.slides) {
     parsed.slides = parsed.slides.map((s, i) => ({
       ...s,
       slide_number: s.slide_number ?? i + 1,
+      layout: s.layout ?? "bullets",
+      title: s.title ?? `Slide ${i + 1}`,
       speaker_notes: s.speaker_notes ?? "",
     }));
   }
