@@ -3,35 +3,8 @@
 import pptxgen from "pptxgenjs";
 import { saveAs } from "file-saver";
 import type { DocumentOutput, Slide, ThemeOption, InputImage } from "../types/document";
-
-// ─── Capture LLM HTML slide as base64 PNG via html2canvas ────────────────────
-async function captureSlideHTML(html: string): Promise<string | null> {
-  try {
-    const html2canvas = (await import("html2canvas")).default;
-    // Create a hidden container sized exactly 960×540
-    const container = document.createElement("div");
-    container.style.cssText = [
-      "position:fixed", "top:-9999px", "left:-9999px",
-      "width:960px", "height:540px", "overflow:hidden", "z-index:-1",
-    ].join(";");
-    container.innerHTML = html;
-    document.body.appendChild(container);
-    try {
-      const canvas = await html2canvas(container, {
-        width: 960, height: 540,
-        scale: 1,
-        useCORS: true,
-        logging: false,
-        backgroundColor: null,
-      });
-      return canvas.toDataURL("image/png");
-    } finally {
-      document.body.removeChild(container);
-    }
-  } catch {
-    return null;
-  }
-}
+// NOTE: html field on slides is used only for browser preview (HTMLSlidePreview).
+// The PPTX export always uses PptxGenJS shape/text rendering so output is fully editable.
 
 // ─── Theme definitions ────────────────────────────────────────────────────────
 interface ThemeColors {
@@ -602,17 +575,7 @@ export async function buildAndDownloadPptx(
     const slide_ = prs.addSlide();
     slide_.background = { color: tc.background };
 
-    // If LLM generated HTML for this slide, capture it as a full-bleed image
-    if (s.html) {
-      const png = await captureSlideHTML(s.html);
-      if (png) {
-        slide_.addImage({ data: png, x: 0, y: 0, w: "100%", h: "100%" });
-        if (s.speaker_notes) slide_.addNotes(s.speaker_notes);
-        continue;
-      }
-      // Fall through to template rendering if capture failed
-    }
-
+    // Always use editable PptxGenJS template rendering (html field is for browser preview only)
     switch (s.layout) {
       case "title":       buildTitleSlide(prs, slide_, s, tc); break;
       case "bullets":     buildBulletsSlide(slide_, s, tc); break;

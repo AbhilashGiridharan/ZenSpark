@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from "react";
-import { Settings, AlertCircle, X, StopCircle } from "lucide-react";
+import { Settings, AlertCircle, X, StopCircle, PlusCircle } from "lucide-react";
 import type {
   AzureConfig,
   InputFile,
@@ -27,6 +27,15 @@ import {
 } from "./services/promptTemplates";
 
 const STORAGE_KEY = "ai_doc_azure_config";
+const SESSION_KEY = "zenspark_session";
+
+interface PersistedSession {
+  chatHistory: ChatMessage[];
+  generatedDoc: DocumentOutput | null;
+  outputFormat: OutputFormat;
+  theme: ThemeOption;
+  savedAt: string;
+}
 
 function loadConfig(): AzureConfig | null {
   try {
@@ -34,6 +43,31 @@ function loadConfig(): AzureConfig | null {
     return raw ? JSON.parse(raw) : null;
   } catch {
     return null;
+  }
+}
+
+function loadSession(): PersistedSession | null {
+  try {
+    const raw = localStorage.getItem(SESSION_KEY);
+    return raw ? JSON.parse(raw) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSession(data: PersistedSession) {
+  try {
+    // Omit html from slides before persisting — it's large and re-generated on refine
+    const slim: PersistedSession = {
+      ...data,
+      generatedDoc: data.generatedDoc ? {
+        ...data.generatedDoc,
+        slides: data.generatedDoc.slides?.map(({ html: _html, ...rest }) => rest),
+      } : null,
+    };
+    localStorage.setItem(SESSION_KEY, JSON.stringify(slim));
+  } catch {
+    // localStorage full or unavailable — ignore
   }
 }
 
@@ -68,10 +102,36 @@ export default function App() {
   const [tokenUsage, setTokenUsage] = useState<TokenUsage | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  // Show settings modal on first load if no config saved
+  // Restore last session on mount
   useEffect(() => {
+    const session = loadSession();
+    if (session) {
+      setChatHistory(session.chatHistory ?? []);
+      setGeneratedDoc(session.generatedDoc ?? null);
+      setOutputFormat(session.outputFormat ?? "pptx");
+      setTheme(session.theme ?? "corporate_blue");
+    }
     if (!azureConfig) setShowSettings(true);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  // Persist session whenever chat or doc changes
+  useEffect(() => {
+    if (chatHistory.length > 0 || generatedDoc) {
+      saveSession({ chatHistory, generatedDoc, outputFormat, theme, savedAt: new Date().toISOString() });
+    }
+  }, [chatHistory, generatedDoc, outputFormat, theme]);
+
+  const handleNewSession = () => {
+    setChatHistory([]);
+    setGeneratedDoc(null);
+    setChatInput("");
+    setTokenUsage(null);
+    setError(null);
+    setInputFiles([]);
+    setInputImages([]);
+    localStorage.removeItem(SESSION_KEY);
+  };
 
   // ── Handlers ───────────────────────────────────────────────────────────────
   const handleAddFiles = useCallback((newFiles: InputFile[]) => {
@@ -242,6 +302,16 @@ export default function App() {
             >
               <StopCircle size={13} />
               Stop
+            </button>
+          )}
+          {(chatHistory.length > 0 || generatedDoc) && !isGenerating && !isRefining && (
+            <button
+              onClick={handleNewSession}
+              title="Start a new session"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-400 hover:border-gray-500 hover:text-gray-200"
+            >
+              <PlusCircle size={13} />
+              New
             </button>
           )}
           <button
