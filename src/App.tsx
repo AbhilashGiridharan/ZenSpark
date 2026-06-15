@@ -393,6 +393,8 @@ export default function App() {
         currentDoc,
         updatedHistory,
         userMsg.content,
+        inputImages,
+        inputFiles.map((f) => ({ name: f.name, content: f.extractedText })),
         abort.signal
       )) {
         accumulated += chunk;

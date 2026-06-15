@@ -93,11 +93,41 @@ function buildImageParts(images: InputImage[]): OpenAI.Chat.ChatCompletionConten
   }));
 }
 
+// Anthropic-native image blocks
+type AnthropicBlock =
+  | { type: "text"; text: string }
+  | { type: "image"; source: { type: "base64"; media_type: string; data: string } };
+type AnthropicMessage = { role: "user" | "assistant"; content: string | AnthropicBlock[] };
+
+function buildAnthropicImageParts(images: InputImage[]): AnthropicBlock[] {
+  return images.map((img) => ({
+    type: "image" as const,
+    source: { type: "base64" as const, media_type: img.mimeType, data: img.base64 },
+  }));
+}
+
+// Attach images to the last user message in an AnthropicMessage array
+function attachImagesToLastUserMsg(msgs: AnthropicMessage[], images: InputImage[]): AnthropicMessage[] {
+  if (!images.length) return msgs;
+  const result = [...msgs];
+  const lastIdx = result.length - 1;
+  const last = result[lastIdx];
+  const textContent = typeof last.content === "string" ? last.content : "";
+  result[lastIdx] = {
+    ...last,
+    content: [
+      ...buildAnthropicImageParts(images),
+      { type: "text", text: textContent },
+    ],
+  };
+  return result;
+}
+
 // ─── Anthropic Messages API streaming (for Claude on services.ai.azure.com) ──
 async function* streamAnthropic(
   config: AzureConfig,
   systemPrompt: string,
-  messages: { role: "user" | "assistant"; content: string }[],
+  messages: AnthropicMessage[],
   signal?: AbortSignal
 ): AsyncGenerator<string> {
   const base = stripToBase(config.endpoint);
@@ -163,7 +193,8 @@ export async function* generateDocumentStream(
 ): AsyncGenerator<string> {
   // Claude on services.ai.azure.com → Anthropic native API
   if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
-    yield* streamAnthropic(config, systemPrompt, [{ role: "user", content: userPrompt }], signal);
+    const msgs: AnthropicMessage[] = [{ role: "user", content: userPrompt }];
+    yield* streamAnthropic(config, systemPrompt, attachImagesToLastUserMsg(msgs, images), signal);
     return;
   }
 
@@ -218,14 +249,14 @@ Instructions for slide-specific edits:
 - ONLY return raw JSON. No markdown. No code fences. No explanation. Start with { end with }.`;
 
   if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
-    const msgs: { role: "user" | "assistant"; content: string }[] = [
+    const msgs: AnthropicMessage[] = [
       ...chatHistory.slice(0, -1).map((m) => ({ role: m.role as "user" | "assistant", content: m.content })),
       {
         role: "user" as const,
         content: `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nInstruction: ${newInstruction}`,
       },
     ];
-    yield* streamAnthropic(config, systemPrompt, msgs, signal);
+    yield* streamAnthropic(config, systemPrompt, attachImagesToLastUserMsg(msgs, images), signal);
     return;
   }
 
@@ -328,6 +359,8 @@ export async function* smartChatStream(
   currentDoc: DocumentOutput | null,
   chatHistory: ChatMessage[],
   newMessage: string,
+  images: InputImage[],
+  fileTexts: { name: string; content: string }[],
   signal?: AbortSignal
 ): AsyncGenerator<string> {
   const slideIndex = (currentDoc?.slides ?? [])
@@ -354,20 +387,23 @@ When in document-edit mode, apply the same rules as before:
 - Return ALL slides in the JSON — no slides may be omitted.
 - Preserve all existing fields (html, background_html, speaker_notes) unless instructed otherwise.`;
 
+  // Build the user text payload — include attached file content
+  const fileContext = fileTexts.length
+    ? `\n\nAttached files:\n${fileTexts.map((f) => `--- ${f.name} ---\n${f.content}`).join("\n\n")}`
+    : "";
+  const userText = currentDoc
+    ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}${fileContext}`
+    : `${newMessage}${fileContext}`;
+
   if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
-    const msgs: { role: "user" | "assistant"; content: string }[] = [
+    const msgs: AnthropicMessage[] = [
       ...chatHistory.slice(0, -1).map((m) => ({
         role: m.role as "user" | "assistant",
         content: m.content,
       })),
-      {
-        role: "user" as const,
-        content: currentDoc
-          ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}`
-          : newMessage,
-      },
+      { role: "user" as const, content: userText },
     ];
-    yield* streamAnthropic(config, systemPrompt, msgs, signal);
+    yield* streamAnthropic(config, systemPrompt, attachImagesToLastUserMsg(msgs, images), signal);
     return;
   }
 
@@ -380,9 +416,10 @@ When in document-edit mode, apply the same rules as before:
     })),
     {
       role: "user" as const,
-      content: currentDoc
-        ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}`
-        : newMessage,
+      content: [
+        { type: "text" as const, text: userText },
+        ...buildImageParts(images),
+      ],
     },
   ];
 
