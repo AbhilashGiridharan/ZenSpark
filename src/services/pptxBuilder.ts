@@ -2,7 +2,7 @@
 // @ts-ignore — pptxgenjs types
 import pptxgen from "pptxgenjs";
 import { saveAs } from "file-saver";
-import type { DocumentOutput, Slide, ThemeOption, InputImage } from "../types/document";
+import type { DocumentOutput, Slide, ThemeOption, InputImage, PptxElement } from "../types/document";
 // NOTE: html field on slides is used only for browser preview (HTMLSlidePreview).
 // The PPTX export always uses PptxGenJS shape/text rendering so output is fully editable.
 
@@ -720,6 +720,56 @@ function buildTextOverlay(slide_: PptxSlide, s: Slide) {
   }
 }
 
+// ─── Render LLM-authored pptx_elements onto a slide ──────────────────────────
+// The LLM specifies exact positions, colors, fonts — replicating its own HTML design
+// as real editable PowerPoint objects.
+function buildFromPptxElements(slide_: PptxSlide, elements: PptxElement[], bgColor: string) {
+  // Fill background
+  slide_.background = { color: bgColor.replace("#", "") };
+
+  for (const el of elements) {
+    const x = typeof el.x === "number" ? el.x : 0;
+    const y = typeof el.y === "number" ? el.y : 0;
+    const w = el.w ?? 1;
+    const h = el.h ?? 0.5;
+    const fill = el.fill ? el.fill.replace("#", "") : undefined;
+    const color = el.color ? el.color.replace("#", "") : "000000";
+
+    if (el.type === "rect") {
+      slide_.addShape("rect", {
+        x, y, w, h,
+        fill: fill ? { color: fill, transparency: el.transparency ?? 0 } : { type: "none" },
+        line: { color: fill ?? "CCCCCC", transparency: el.transparency ?? 0 },
+      });
+    } else if (el.type === "ellipse") {
+      slide_.addShape("ellipse", {
+        x, y, w, h,
+        fill: fill ? { color: fill, transparency: el.transparency ?? 0 } : { type: "none" },
+        line: { color: fill ?? "CCCCCC", transparency: el.transparency ?? 0 },
+      });
+    } else if (el.type === "line") {
+      slide_.addShape("line", {
+        x, y, w, h,
+        line: { color: fill ?? color, pt: 1 },
+      });
+    } else if (el.type === "text" && el.text !== undefined) {
+      const opts: Record<string, unknown> = {
+        x, y, w, h,
+        fontSize: el.fontSize ?? 14,
+        bold: el.bold ?? false,
+        italic: el.italic ?? false,
+        color,
+        fontFace: el.fontFace ?? "Calibri",
+        align: el.align ?? "left",
+        valign: el.valign ?? "top",
+        wrap: el.wrap !== false,
+      };
+      if (fill) opts.fill = { color: fill };
+      slide_.addText(el.text, opts);
+    }
+  }
+}
+
 // ─── Main PPTX builder ────────────────────────────────────────────────────────
 export async function buildAndDownloadPptx(
   doc: DocumentOutput,
@@ -761,23 +811,25 @@ export async function buildAndDownloadPptx(
     }
     if (!s.slide_number) s.slide_number = (doc.slides?.indexOf(s) ?? 0) + 1;
 
-    // Always use PptxGenJS native shape/text builders — fully editable, never corrupt.
-    // The LLM-generated `html` field is browser-preview only; `background_html` is unused here.
-    // This is the only reliable path: PptxGenJS writes clean XML directly from structured data.
-    slide_.background = { color: tc.background };
-
-    switch (s.layout) {
-      case "title":             buildTitleSlide(prs, slide_, s, tc); break;
-      case "bullets":           buildBulletsSlide(slide_, s, tc); break;
-      case "two_column":        buildTwoColumnSlide(slide_, s, tc); break;
-      case "image_caption":     buildImageCaptionSlide(slide_, s, tc, images); break;
-      case "table":             buildTableSlide(slide_, s, tc); break;
-      case "quote":             buildQuoteSlide(slide_, s, tc); break;
-      case "section_divider":   buildSectionDividerSlide(slide_, s, tc); break;
-      case "agenda":            buildAgendaSlide(slide_, s, tc); break;
-      case "stats":             buildStatsSlide(slide_, s, tc); break;
-      case "closing":           buildClosingSlide(slide_, s, tc); break;
-      default:                  buildBulletsSlide(slide_, s, tc);
+    // ── Render: pptx_elements takes priority (LLM-authored exact design)
+    // Falls back to template builders if not provided.
+    if (s.pptx_elements && s.pptx_elements.length > 0) {
+      buildFromPptxElements(slide_, s.pptx_elements, tc.background);
+    } else {
+      slide_.background = { color: tc.background };
+      switch (s.layout) {
+        case "title":             buildTitleSlide(prs, slide_, s, tc); break;
+        case "bullets":           buildBulletsSlide(slide_, s, tc); break;
+        case "two_column":        buildTwoColumnSlide(slide_, s, tc); break;
+        case "image_caption":     buildImageCaptionSlide(slide_, s, tc, images); break;
+        case "table":             buildTableSlide(slide_, s, tc); break;
+        case "quote":             buildQuoteSlide(slide_, s, tc); break;
+        case "section_divider":   buildSectionDividerSlide(slide_, s, tc); break;
+        case "agenda":            buildAgendaSlide(slide_, s, tc); break;
+        case "stats":             buildStatsSlide(slide_, s, tc); break;
+        case "closing":           buildClosingSlide(slide_, s, tc); break;
+        default:                  buildBulletsSlide(slide_, s, tc);
+      }
     }
 
     if (s.speaker_notes) {

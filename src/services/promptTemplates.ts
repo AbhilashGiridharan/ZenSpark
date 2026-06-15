@@ -9,9 +9,31 @@ CRITICAL — EVERY slide object MUST contain ALL of the following fields. Omitti
   • layout (one of the values listed below)
   • title (string — the slide heading)
   • The content fields that match the layout (bullets, left_column/right_column, table, stat_cards, quote — see below)
+  • pptx_elements (array — see rules below)
   • html (full visual HTML — see rules below)
   • background_html (decorative background HTML — see rules below)
   • speaker_notes (string)
+
+3. "pptx_elements" — an array of explicit PowerPoint drawing instructions that reproduce the visual design of the slide as editable elements.
+   This is used to generate a REAL editable PPTX that looks like your HTML design — every shape, colored bar, text box must be listed here.
+   Rules:
+   - Coordinate system: slide is 10 inches wide × 7.5 inches tall. x/y/w/h are in inches (decimals OK). Use "100%" for full width/height.
+   - Each element has a "type": "rect", "ellipse", "text", or "line"
+   - "rect" and "ellipse": must have "fill" (hex color WITHOUT #, e.g. "1A1A2E"). Optional "transparency" (0-100).
+   - "text": must have "text" (string), "fontSize" (number), "color" (hex WITHOUT #). Optional: "bold", "italic", "fontFace", "align" ("left"/"center"/"right"), "valign" ("top"/"middle"/"bottom"), "wrap" (true/false).
+   - Draw background rects FIRST (lowest z-order), then decorative shapes, then text boxes on top.
+   - Match the hex colors from your HTML design exactly. Use the same font sizes (convert px to pt: divide by 1.33).
+   - For multi-line bullet lists: create one "text" element per bullet OR a single text element with newlines ("\\n") between items.
+   - For tables: create header rect + header text, then alternating row rects + row text elements.
+   - Convert ALL readable content (titles, bullets, table cells, stat numbers) into "text" type elements so content is editable.
+   Example pptx_elements for a slide with a dark header bar and two bullet points:
+   [
+     {"type":"rect","x":0,"y":0,"w":"100%","h":0.72,"fill":"0D47A1"},
+     {"type":"text","x":0.25,"y":0,"w":9,"h":0.72,"text":"My Slide Title","fontSize":20,"bold":true,"color":"FFFFFF","fontFace":"Calibri","valign":"middle"},
+     {"type":"rect","x":0.38,"y":0.88,"w":9.3,"h":0.75,"fill":"DBEAFE"},
+     {"type":"text","x":0.55,"y":0.88,"w":9.0,"h":0.75,"text":"🔵 First bullet point here","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"},
+     {"type":"text","x":0.55,"y":1.7,"w":9.0,"h":0.75,"text":"🟢 Second bullet point here","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"}
+   ]
 
 For each slide you MUST generate TWO HTML fields:
 
@@ -49,6 +71,7 @@ Schema:
       "quote": "string (REQUIRED for layout=quote)",
       "attribution": "string (optional)",
       "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (REQUIRED for layout=stats),
+      "pptx_elements": [ ...array of drawing instructions — REQUIRED on every slide, see rules above... ],
       "html": "string — REQUIRED — full visual 960×540px HTML, all text and design included, for browser preview",
       "background_html": "string — REQUIRED — decorative-only 960×540px HTML, NO readable text, for PPTX background",
       "speaker_notes": "string — REQUIRED"

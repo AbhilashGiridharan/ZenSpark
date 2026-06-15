@@ -45,6 +45,29 @@ export interface StatCard {
   icon?: string;  // optional emoji e.g. "📊"
 }
 
+// ─── Explicit PPTX element — LLM specifies exact position/style for editable export
+export interface PptxElement {
+  type: "rect" | "ellipse" | "text" | "line";
+  x: number;            // inches from left
+  y: number;            // inches from top
+  w: number | string;   // inches or "100%"
+  h: number | string;   // inches or "100%"
+  // Shape fill (rect / ellipse)
+  fill?: string;        // hex color WITHOUT #, e.g. "1a1a2e"
+  // Text content
+  text?: string;
+  fontSize?: number;
+  bold?: boolean;
+  italic?: boolean;
+  color?: string;       // hex WITHOUT #
+  fontFace?: string;
+  align?: "left" | "center" | "right";
+  valign?: "top" | "middle" | "bottom";
+  wrap?: boolean;
+  // Transparency 0-100
+  transparency?: number;
+}
+
 export interface Slide {
   slide_number: number;
   layout: SlideLayout;
@@ -60,6 +83,7 @@ export interface Slide {
   attribution?: string;
   image_index?: number;
   stat_cards?: StatCard[];
+  pptx_elements?: PptxElement[]; // LLM-authored explicit element list for editable PPTX
   html?: string;           // LLM-generated HTML — full visual (browser preview only)
   background_html?: string; // LLM-generated HTML — decorative background only (no text), used as PPTX bg image
   speaker_notes: string;
