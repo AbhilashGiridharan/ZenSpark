@@ -21,7 +21,7 @@ export default function TextInput({
   return (
     <div>
       {label && (
-        <label className="mb-1 block text-xs font-medium text-gray-400">
+        <label className="mb-1 block text-xs font-medium text-gray-500">
           {label}
         </label>
       )}
@@ -31,10 +31,10 @@ export default function TextInput({
         placeholder={placeholder}
         maxLength={maxLength}
         rows={5}
-        className="w-full resize-none rounded-lg border border-gray-700 bg-gray-800/40 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
+        className="w-full resize-none rounded-lg border border-gray-300 bg-gray-100/40 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-600 focus:outline-none focus:ring-1 focus:ring-blue-600"
         spellCheck={false}
       />
-      <div className={`mt-0.5 text-right text-xs ${isOver ? "text-amber-400" : "text-gray-600"}`}>
+      <div className={`mt-0.5 text-right text-xs ${isOver ? "text-amber-400" : "text-gray-400"}`}>
         {len.toLocaleString()} chars
         {isOver && ` · Large context — only the first ${SOFT_LIMIT.toLocaleString()} chars will be sent`}
       </div>

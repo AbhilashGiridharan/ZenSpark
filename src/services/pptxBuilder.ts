@@ -782,7 +782,7 @@ export async function buildAndDownloadPptx(
   prs.author = doc.author || "AI Doc Generator";
   prs.title = doc.title;
 
-  const slides = doc.slides ?? [];
+  const slides = (doc.slides ?? []).map((s) => ({ ...s }));
 
   for (const s of slides) {
     const slide_ = prs.addSlide();
@@ -852,7 +852,7 @@ export async function buildAndDownloadVisualPptx(
   doc: DocumentOutput,
   onProgress?: (done: number, total: number) => void
 ): Promise<void> {
-  const slides = doc.slides ?? [];
+  const slides = (doc.slides ?? []).map((s) => ({ ...s }));
   const hasHtml = slides.some((s) => s.html);
   if (!hasHtml) {
     // Fall back to editable builder if no HTML was generated

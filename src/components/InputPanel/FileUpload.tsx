@@ -13,6 +13,7 @@ interface Props {
 const ACCEPT = {
   "application/pdf": [".pdf"],
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": [".docx"],
+  "application/vnd.openxmlformats-officedocument.presentationml.presentation": [".pptx"],
   "text/plain": [".txt"],
   "text/markdown": [".md"],
   "text/csv": [".csv"],
@@ -22,7 +23,7 @@ const ACCEPT = {
 function fileIcon(type: string) {
   if (type.includes("pdf") || type.includes("word")) return <FileText size={14} className="text-blue-400" />;
   if (type.includes("csv") || type.includes("spreadsheet")) return <FileSpreadsheet size={14} className="text-green-400" />;
-  return <File size={14} className="text-gray-400" />;
+  return <File size={14} className="text-gray-500" />;
 }
 
 export default function FileUpload({ files, onAdd, onRemove }: Props) {
@@ -56,16 +57,16 @@ export default function FileUpload({ files, onAdd, onRemove }: Props) {
         className={`flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed p-4 transition-colors ${
           isDragActive
             ? "border-blue-500 bg-blue-950/30"
-            : "border-gray-700 hover:border-gray-500 hover:bg-gray-800/30"
+            : "border-gray-300 hover:border-gray-400 hover:bg-gray-100/30"
         }`}
       >
         <input {...getInputProps()} />
         <Upload size={20} className={isDragActive ? "text-blue-400" : "text-gray-500"} />
-        <p className="mt-2 text-center text-xs text-gray-400">
+        <p className="mt-2 text-center text-xs text-gray-500">
           {isDragActive ? "Drop files here…" : "Drop files or click to upload"}
         </p>
-        <p className="mt-1 text-center text-xs text-gray-600">
-          PDF, DOCX, TXT, MD, CSV, HTML
+        <p className="mt-1 text-center text-xs text-gray-400">
+          PDF, DOCX, PPTX, TXT, MD, CSV, HTML
         </p>
       </div>
 
@@ -75,18 +76,18 @@ export default function FileUpload({ files, onAdd, onRemove }: Props) {
           {files.map((f) => (
             <li
               key={f.id}
-              className="flex items-center justify-between rounded-md bg-gray-800/60 px-2 py-1.5 text-xs"
+              className="flex items-center justify-between rounded-md bg-gray-100/60 px-2 py-1.5 text-xs"
             >
               <div className="flex items-center gap-2 overflow-hidden">
                 {fileIcon(f.type)}
-                <span className="truncate text-gray-300">{f.name}</span>
-                <span className="flex-shrink-0 text-gray-600">
+                <span className="truncate text-gray-700">{f.name}</span>
+                <span className="flex-shrink-0 text-gray-400">
                   {formatFileSize(f.size)}
                 </span>
               </div>
               <button
                 onClick={() => onRemove(f.id)}
-                className="ml-2 flex-shrink-0 rounded p-0.5 text-gray-600 hover:text-red-400"
+                className="ml-2 flex-shrink-0 rounded p-0.5 text-gray-400 hover:text-red-400"
               >
                 <X size={12} />
               </button>

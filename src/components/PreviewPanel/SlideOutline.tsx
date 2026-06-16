@@ -55,7 +55,7 @@ export default function SlideOutline({ doc, isGenerating, streamingText }: Props
       <div className="flex h-full flex-col gap-2">
         <div className="flex items-center gap-2">
           <SlidersHorizontal size={14} className="text-blue-400 animate-pulse" />
-          <span className="text-sm font-medium text-gray-300">
+          <span className="text-sm font-medium text-gray-700">
             Generating
             {partialSlides.length > 0 ? ` — ${partialSlides.length} slides so far…` : "…"}
           </span>
@@ -65,32 +65,32 @@ export default function SlideOutline({ doc, isGenerating, streamingText }: Props
             {[...Array(5)].map((_, i) => (
               <div
                 key={i}
-                className="w-full h-10 rounded-lg bg-gray-800/60 animate-pulse"
+                className="w-full h-10 rounded-lg bg-gray-100/60 animate-pulse"
                 style={{ opacity: 1 - i * 0.15 }}
               />
             ))}
-            <p className="text-xs text-gray-600">Waiting for slides…</p>
+            <p className="text-xs text-gray-400">Waiting for slides…</p>
           </div>
         ) : (
           <div className="flex-1 overflow-y-auto flex flex-col gap-1.5 pr-1">
             {partialSlides.map((s, i) => (
               <div
                 key={s.num}
-                className="flex items-center gap-2.5 rounded-lg border border-gray-800 bg-gray-900/60 px-3 py-2"
+                className="flex items-center gap-2.5 rounded-lg border border-gray-200 bg-gray-100/60 px-3 py-2"
                 style={{ animation: `fadeIn 0.3s ease ${i * 0.05}s both` }}
               >
                 <span className="flex-shrink-0 text-sm">
                   {LAYOUT_ICONS[s.layout] ?? "📋"}
                 </span>
                 <div className="min-w-0 flex-1">
-                  <p className="truncate text-xs font-medium text-gray-300">{s.title}</p>
-                  <p className="text-[10px] text-gray-600 capitalize">{s.layout.replace("_", " ")}</p>
+                  <p className="truncate text-xs font-medium text-gray-700">{s.title}</p>
+                  <p className="text-[10px] text-gray-400 capitalize">{String(s.layout ?? "").replace(/_/g, " ")}</p>
                 </div>
                 <span className="flex-shrink-0 text-[10px] text-gray-700">#{s.num}</span>
               </div>
             ))}
             {/* pulse card for next incoming slide */}
-            <div className="h-9 w-full animate-pulse rounded-lg bg-gray-800/40" />
+            <div className="h-9 w-full animate-pulse rounded-lg bg-gray-100/40" />
           </div>
         )}
       </div>
@@ -100,12 +100,14 @@ export default function SlideOutline({ doc, isGenerating, streamingText }: Props
   // ── Empty state ────────────────────────────────────────────────────────────
   if (!doc) {
     return (
-      <div className="flex h-full flex-col items-center justify-center gap-3 text-center text-gray-600">
-        <FileText size={40} strokeWidth={1} />
+      <div className="flex h-full flex-col items-center justify-center gap-4 text-center px-6">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-gradient-to-br from-blue-50 to-indigo-100 shadow-sm">
+          <FileText size={32} strokeWidth={1.5} className="text-blue-400" />
+        </div>
         <div>
-          <p className="text-sm font-medium text-gray-500">No document yet</p>
-          <p className="mt-1 text-xs">
-            Configure inputs on the left, then click Generate
+          <p className="text-sm font-semibold text-gray-700">No document yet</p>
+          <p className="mt-1 text-xs text-gray-400 leading-relaxed">
+            Describe what to create in the chat and press Send to generate
           </p>
         </div>
       </div>
@@ -117,12 +119,12 @@ export default function SlideOutline({ doc, isGenerating, streamingText }: Props
   const sections = doc.sections ?? [];
 
   return (
-    <div className="flex h-full flex-col gap-1 overflow-y-auto pr-1">
+    <div className="flex h-full flex-col gap-1.5 overflow-y-auto pr-1">
       {/* Document header */}
-      <div className="mb-2 rounded-lg border border-blue-900/40 bg-blue-950/20 px-3 py-2">
-        <p className="text-sm font-semibold text-blue-300">{doc.title}</p>
-        <p className="text-xs text-gray-500">
-          {doc.document_type.toUpperCase()} · {doc.theme.replace("_", " ")} · {doc.author} · {doc.date}
+      <div className="mb-2 rounded-xl border border-blue-100 bg-gradient-to-br from-blue-50 to-indigo-50 px-4 py-3 shadow-sm">
+        <p className="text-sm font-semibold text-blue-900">{doc.title}</p>
+        <p className="mt-0.5 text-[11px] text-blue-500/80">
+          {String(doc.document_type ?? "").toUpperCase()} · {String(doc.theme ?? "").replace(/_/g, " ")} · {doc.author} · {doc.date}
         </p>
       </div>
 
@@ -142,20 +144,20 @@ export default function SlideOutline({ doc, isGenerating, streamingText }: Props
       {sections.map((sec, i) => (
         <div
           key={i}
-          className="rounded-lg border border-gray-800 bg-gray-900/40 px-3 py-2"
+          className="rounded-lg border border-gray-200 bg-gray-100/40 px-3 py-2"
         >
           <p
-            className={`font-medium text-gray-300 ${
+            className={`font-medium text-gray-700 ${
               sec.level === 1
                 ? "text-sm"
                 : sec.level === 2
                 ? "text-xs pl-3"
-                : "text-xs pl-6 text-gray-400"
+                : "text-xs pl-6 text-gray-500"
             }`}
           >
             {sec.heading}
           </p>
-          <p className="mt-0.5 text-xs text-gray-600 line-clamp-2">
+          <p className="mt-0.5 text-xs text-gray-400 line-clamp-2">
             {sec.paragraphs[0] ?? ""}
           </p>
         </div>
@@ -176,28 +178,28 @@ function SlideCard({
   const icon = LAYOUT_ICONS[slide.layout] ?? "□";
 
   return (
-    <div className="rounded-lg border border-gray-800 bg-gray-900/50 transition-colors hover:border-gray-700">
+    <div className="rounded-xl border border-gray-200 bg-white shadow-sm transition-all hover:border-blue-200 hover:shadow-md">
       <button
         onClick={onToggle}
         className="flex w-full items-center gap-2 px-3 py-2 text-left"
       >
-        <span className="w-5 flex-shrink-0 text-center text-xs text-gray-500">
+        <span className="flex h-5 w-5 flex-shrink-0 items-center justify-center rounded-full bg-blue-100 text-[10px] font-semibold text-blue-700">
           {slide.slide_number}
         </span>
         <span className="text-sm">{icon}</span>
-        <span className="flex-1 truncate text-sm text-gray-300">{slide.title}</span>
-        <span className="text-xs text-gray-600">{slide.layout}</span>
+        <span className="flex-1 truncate text-sm text-gray-700">{slide.title}</span>
+        <span className="text-xs text-gray-400">{slide.layout}</span>
         {isExpanded ? (
-          <ChevronUp size={13} className="flex-shrink-0 text-gray-600" />
+          <ChevronUp size={13} className="flex-shrink-0 text-gray-400" />
         ) : (
-          <ChevronDown size={13} className="flex-shrink-0 text-gray-600" />
+          <ChevronDown size={13} className="flex-shrink-0 text-gray-400" />
         )}
       </button>
 
       {isExpanded && (
-        <div className="border-t border-gray-800 px-3 pb-3 pt-2 text-xs">
+        <div className="border-t border-gray-200 px-3 pb-3 pt-2 text-xs">
           {slide.subtitle && (
-            <p className="mb-1 text-gray-400">{slide.subtitle}</p>
+            <p className="mb-1 text-gray-500">{slide.subtitle}</p>
           )}
           {slide.bullets && slide.bullets.length > 0 && (
             <ul className="space-y-0.5">
@@ -210,10 +212,10 @@ function SlideCard({
             </ul>
           )}
           {slide.quote && (
-            <p className="italic text-gray-400">"{slide.quote}"</p>
+            <p className="italic text-gray-500">"{slide.quote}"</p>
           )}
           {slide.table && (
-            <p className="text-gray-600">
+            <p className="text-gray-400">
               Table: {slide.table.headers.join(", ")} ({slide.table.rows.length} rows)
             </p>
           )}

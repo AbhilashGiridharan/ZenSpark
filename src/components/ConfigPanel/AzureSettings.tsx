@@ -16,7 +16,7 @@ const DEFAULT_CONFIG: AzureConfig = {
   apiKey: "",
   deploymentName: "claude-opus-4-6-demo",
   apiVersion: "",
-  maxTokens: 16000,
+  maxTokens: 32000,
   temperature: 0.7,
   visionDeploymentName: "",
 };
@@ -27,7 +27,7 @@ interface Props {
   onClose: () => void;
 }
 
-const INPUT_CLS = "w-full rounded-lg border border-gray-700 bg-gray-800/60 px-3 py-2 text-sm text-gray-200 placeholder-gray-600 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
+const INPUT_CLS = "w-full rounded-lg border border-gray-300 bg-gray-100/60 px-3 py-2 text-sm text-gray-800 placeholder-gray-400 focus:border-blue-500 focus:outline-none focus:ring-1 focus:ring-blue-500";
 
 function friendlyError(raw: string): string {
   if (raw.includes("404") || raw.toLowerCase().includes("deployment") || raw.toLowerCase().includes("does not exist")) {
@@ -116,12 +116,12 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-xl border border-gray-700 bg-gray-900 shadow-2xl">
+      <div className="w-full max-w-lg rounded-xl border border-gray-300 bg-gray-50 shadow-2xl">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between border-b border-gray-300 px-6 py-4">
           <div className="flex items-center gap-2">
             <Settings size={18} className="text-blue-400" />
-            <h2 className="font-semibold text-white">Azure AI Foundry Settings</h2>
+            <h2 className="font-semibold text-gray-900">Azure AI Foundry Settings</h2>
           </div>
           <div className="flex items-center gap-3">
             <a
@@ -132,7 +132,7 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
             >
               Open Azure AI Foundry <ExternalLink size={11} />
             </a>
-            <button onClick={onClose} className="rounded p-1 text-gray-400 hover:text-white">
+            <button onClick={onClose} className="rounded p-1 text-gray-500 hover:text-gray-900">
               <X size={18} />
             </button>
           </div>
@@ -204,15 +204,15 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
 
             {/* Live URL preview */}
             {previewUrl && (
-              <div className="rounded-lg border border-gray-800 bg-gray-950 px-3 py-2">
+              <div className="rounded-lg border border-gray-200 bg-white px-3 py-2">
                 <div className="mb-1 flex items-center justify-between">
                   <span className="text-xs font-medium text-gray-500">API URL that will be called</span>
-                  <button onClick={copyUrl} className="flex items-center gap-1 text-xs text-gray-600 hover:text-gray-400">
+                  <button onClick={copyUrl} className="flex items-center gap-1 text-xs text-gray-400 hover:text-gray-500">
                     <Copy size={11} />
                     {copied ? "Copied!" : "Copy"}
                   </button>
                 </div>
-                <p className="break-all font-mono text-xs text-gray-400">{previewUrl}</p>
+                <p className="break-all font-mono text-xs text-gray-500">{previewUrl}</p>
               </div>
             )}
 
@@ -237,7 +237,7 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
 
             {/* Test result banner */}
             <div className={`rounded-lg border px-4 py-3 text-sm ${
-              testStatus === "idle"    ? "border-gray-800 bg-gray-800/20 text-gray-600" :
+              testStatus === "idle"    ? "border-gray-200 bg-gray-100/20 text-gray-400" :
               testStatus === "testing" ? "border-blue-800 bg-blue-950/40 text-blue-300" :
               testStatus === "ok"      ? "border-green-700 bg-green-950/40 text-green-300" :
                                          "border-red-700 bg-red-950/40 text-red-300"
@@ -262,14 +262,14 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
         </div>
 
         {/* Footer */}
-        <div className="flex items-center justify-between border-t border-gray-700 px-6 py-4">
+        <div className="flex items-center justify-between border-t border-gray-300 px-6 py-4">
           <button
             onClick={handleTest}
             disabled={testStatus === "testing"}
             className={`flex items-center gap-2 rounded-lg border px-4 py-2 text-sm font-medium transition-colors disabled:opacity-50 ${
               testStatus === "ok"
                 ? "border-green-700 text-green-400"
-                : "border-gray-600 text-gray-300 hover:border-blue-500 hover:text-blue-400"
+                : "border-gray-600 text-gray-700 hover:border-blue-500 hover:text-blue-400"
             }`}
           >
             {testStatus === "testing" ? <Loader2 size={14} className="animate-spin" /> :
@@ -278,7 +278,7 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
           </button>
 
           <div className="flex gap-2">
-            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-gray-400 hover:text-white">
+            <button onClick={onClose} className="rounded-lg px-4 py-2 text-sm text-gray-500 hover:text-gray-900">
               Cancel
             </button>
             <button
@@ -300,9 +300,9 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
 function Field({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
     <div>
-      <label className="mb-1 block text-xs font-medium text-gray-400">{label}</label>
+      <label className="mb-1 block text-xs font-medium text-gray-500">{label}</label>
       {children}
-      {hint && <p className="mt-1 text-xs text-gray-600">{hint}</p>}
+      {hint && <p className="mt-1 text-xs text-gray-400">{hint}</p>}
     </div>
   );
 }

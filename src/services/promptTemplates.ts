@@ -10,9 +10,9 @@ CRITICAL — EVERY slide object MUST contain ALL of the following fields. Omitti
   • title (string — the slide heading)
   • The content fields that match the layout (bullets, left_column/right_column, table, stat_cards, quote — see below)
   • pptx_elements (array — see rules below)
-  • html (full visual HTML — see rules below)
-  • background_html (decorative background HTML — see rules below)
   • speaker_notes (string)
+
+IMPORTANT: Do NOT include html or background_html fields — these are generated client-side. Focus token budget on pptx_elements, content fields, and speaker_notes.
 
 3. "pptx_elements" — an array of explicit PowerPoint drawing instructions that reproduce the visual design of the slide as editable elements.
    This is used to generate a REAL editable PPTX that looks like your HTML design — every shape, colored bar, text box must be listed here.
@@ -35,22 +35,9 @@ CRITICAL — EVERY slide object MUST contain ALL of the following fields. Omitti
      {"type":"text","x":0.55,"y":1.7,"w":9.0,"h":0.75,"text":"🟢 Second bullet point here","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"}
    ]
 
-For each slide you MUST generate TWO HTML fields:
-
-1. "html" — the FULL visual slide at exactly 960×540px (for browser preview). Include all text, shapes, styling.
-   Rules: inline styles only, no external resources, outermost div must be width:960px;height:540px;overflow:hidden;position:relative
-   Make it visually rich: gradients, colored shapes, icons (Unicode/emoji), accent bars, Google Fonts via @import OK
-
-2. "background_html" — DECORATIVE BACKGROUND ONLY at 960×540px (used as PPTX slide background image).
-   Rules: EXACTLY the same as html EXCEPT — remove ALL readable text content from the slide.
-   Include ONLY: color fills/gradients, geometric shapes (rects, circles, triangles via CSS), accent stripes,
-   glass-morphism panels, large decorative emoji/icons that are purely visual (not content-specific),
-   subtle patterns, watermark-style large shapes.
-   Do NOT include: titles, bullet text, numbers from stats, table content, any words.
-   Why: editable text will be placed on top as real PowerPoint text objects — we need the bg to be text-free.
+For each slide you MUST generate pptx_elements. Do NOT include html or background_html \u2014 these are generated client-side.
 
 Schema:
-{
   "title": "string",
   "document_type": "pptx" | "docx" | "both",
   "theme": "corporate_blue" | "dark_tech" | "minimal_white" | "green_growth",
@@ -72,8 +59,6 @@ Schema:
       "attribution": "string (optional)",
       "stat_cards": [{ "value": "string", "label": "string", "icon": "string (emoji)" }] (REQUIRED for layout=stats),
       "pptx_elements": [ ...array of drawing instructions — REQUIRED on every slide, see rules above... ],
-      "html": "string — REQUIRED — full visual 960×540px HTML, all text and design included, for browser preview",
-      "background_html": "string — REQUIRED — decorative-only 960×540px HTML, NO readable text, for PPTX background",
       "speaker_notes": "string — REQUIRED"
     }
   ],
@@ -93,7 +78,7 @@ Layout guidance:
 - Use "section_divider" between major topics — full-bleed colored background, large title
 - Use "quote" for impactful quotes — oversized quotation mark, centered italic text
 - Prefix ALL bullet text with a contextually relevant emoji (📊 📈 ✅ 🎯 ⚡ 🔒 💡 🚀 📋 🤝 🏆)
-- Every slide MUST have html, background_html, and speaker_notes
+- Every slide MUST have pptx_elements and speaker_notes (html is auto-generated)
 - Include "slides" for document_type "pptx" or "both"
 - Include "sections" for document_type "docx" or "both"
 `;

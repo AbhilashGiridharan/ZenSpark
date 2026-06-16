@@ -72,7 +72,7 @@ export default function HTMLSlidePreview({ slides }: Props) {
       {/* ── Main slide area — fills remaining height ── */}
       <div
         ref={slideAreaRef}
-        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-700 bg-gray-950 shadow-xl"
+        className="relative min-h-0 flex-1 overflow-hidden rounded-lg border border-gray-300 bg-white shadow-xl"
       >
         <iframe
           ref={iframeRef}
@@ -97,16 +97,16 @@ export default function HTMLSlidePreview({ slides }: Props) {
         <button
           onClick={prev}
           disabled={current === 0}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-200 disabled:opacity-25"
+          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-25"
         >
           <ChevronLeft size={16} />
         </button>
         <div className="flex-1 text-center">
-          <span className="text-xs font-medium text-gray-400">
+          <span className="text-xs font-medium text-gray-500">
             {current + 1} <span className="text-gray-700">/</span> {slides.length}
           </span>
           {slide?.title && (
-            <span className="ml-2 max-w-[180px] truncate align-middle text-xs text-gray-600">
+            <span className="ml-2 max-w-[180px] truncate align-middle text-xs text-gray-400">
               {slide.title}
             </span>
           )}
@@ -114,7 +114,7 @@ export default function HTMLSlidePreview({ slides }: Props) {
         <button
           onClick={next}
           disabled={current === slides.length - 1}
-          className="rounded-md p-1 text-gray-500 hover:bg-gray-800 hover:text-gray-200 disabled:opacity-25"
+          className="rounded-md p-1 text-gray-500 hover:bg-gray-100 hover:text-gray-800 disabled:opacity-25"
         >
           <ChevronRight size={16} />
         </button>
@@ -160,7 +160,7 @@ function ThumbButton({ slide, index, isCurrent, onClick }: {
       className={`relative flex-shrink-0 overflow-hidden rounded-md border-2 transition-all ${
         isCurrent
           ? "border-blue-500 shadow-lg shadow-blue-900/40"
-          : "border-gray-700/60 hover:border-gray-500"
+          : "border-gray-300/60 hover:border-gray-400"
       }`}
       style={{ width: THUMB_W, height: THUMB_H }}
     >
@@ -179,7 +179,7 @@ function ThumbButton({ slide, index, isCurrent, onClick }: {
           }}
         />
       ) : (
-        <div className="flex h-full w-full items-center justify-center bg-gray-900 text-[10px] text-gray-600">
+        <div className="flex h-full w-full items-center justify-center bg-gray-50 text-[10px] text-gray-400">
           {slide.layout}
         </div>
       )}

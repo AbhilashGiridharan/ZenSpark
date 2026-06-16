@@ -308,12 +308,14 @@ export async function generateClarifyingQuestions(
   signal?: AbortSignal
 ): Promise<ClarifyingQuestion[]> {
   const systemPrompt = `You are a presentation strategist. The user wants to generate a presentation.
-Analyze their goal and uploaded files, then generate 3-5 SHORT clarifying questions that would help you create a much better presentation.
-Focus on: audience, key message, specific data to highlight, tone/formality, must-include content.
+Analyze their goal and uploaded files, then generate 3-5 SHORT clarifying questions that would significantly improve the output.
+You MUST always return questions — never return an empty array.
+Focus on: target audience, key message/objective, company/client name, specific data or metrics to highlight, tone/formality, number of slides desired.
 Return ONLY a JSON array — no markdown, no explanation. Example:
 [
   {"id":"q1","question":"Who is the primary audience?","hint":"e.g. C-suite, engineers, investors"},
-  {"id":"q2","question":"What is the single most important takeaway?","hint":"The one thing they must remember"}
+  {"id":"q2","question":"What is the single most important takeaway?","hint":"The one thing they must remember"},
+  {"id":"q3","question":"What is the company or client name?","hint":"Used for branding in the slides"}
 ]`;
 
   const userMsg = `User goal: ${userGoal}\nUploaded files: ${fileNames.join(", ") || "none"}`;
@@ -390,11 +392,17 @@ When in document-edit mode:
 - Preserve all existing fields (html, background_html, speaker_notes) unless instructed otherwise.`;
 
   // Build the user text payload — include attached file content
+  // Strip html/background_html from doc context to avoid token explosion
+  const slimDoc = currentDoc ? {
+    ...currentDoc,
+    slides: (currentDoc.slides ?? []).map(({ html: _h, background_html: _b, ...rest }) => rest),
+  } : null;
+
   const fileContext = fileTexts.length
     ? `\n\nAttached files:\n${fileTexts.map((f) => `--- ${f.name} ---\n${f.content}`).join("\n\n")}`
     : "";
-  const userText = currentDoc
-    ? `Current document JSON:\n${JSON.stringify(currentDoc, null, 2)}\n\nUser message: ${newMessage}${fileContext}`
+  const userText = slimDoc
+    ? `Current document JSON:\n${JSON.stringify(slimDoc, null, 2)}\n\nUser message: ${newMessage}${fileContext}`
     : `${newMessage}${fileContext}`;
 
   if (isServicesEndpoint(config.endpoint) && isClaudeModel(config.deploymentName)) {
@@ -529,13 +537,99 @@ function validateAndNormalize(parsed: DocumentOutput): DocumentOutput {
   if (!parsed.theme) parsed.theme = "corporate_blue";
 
   if (parsed.slides) {
-    parsed.slides = parsed.slides.map((s, i) => ({
-      ...s,
-      slide_number: s.slide_number ?? i + 1,
-      layout: s.layout ?? "bullets",
-      title: s.title ?? `Slide ${i + 1}`,
-      speaker_notes: s.speaker_notes ?? "",
-    }));
+    parsed.slides = parsed.slides.map((s, i) => {
+      const slide = {
+        ...s,
+        slide_number: s.slide_number ?? i + 1,
+        layout: s.layout ?? "bullets",
+        title: s.title ?? `Slide ${i + 1}`,
+        speaker_notes: s.speaker_notes ?? "",
+      };
+      // Generate html from pptx_elements if the LLM omitted it (large decks get truncated)
+      if (!slide.html && slide.pptx_elements && slide.pptx_elements.length > 0) {
+        slide.html = pptxElementsToHtml(slide.pptx_elements as unknown as Array<Record<string, unknown>>);
+      }
+      return slide;
+    });
   }
   return parsed;
+}
+
+// ─── Client-side HTML renderer from pptx_elements (no LLM needed) ─────────────
+// Converts pptx_elements (10×7.5" coordinate space) to a 960×540px HTML preview.
+// Used when LLM omits html due to token limits (common with 10+ slides).
+function pptxElementsToHtml(elements: Array<Record<string, unknown>>): string {
+  const W = 960, H = 540;
+  const SRC_W = 10, SRC_H = 7.5;
+  const sx = W / SRC_W, sy = H / SRC_H;
+
+  const toPx = (v: unknown, axis: "x" | "w" | "y" | "h"): number => {
+    const scale = axis === "x" || axis === "w" ? sx : sy;
+    const total = axis === "x" || axis === "w" ? W : H;
+    if (typeof v === "string" && v.endsWith("%")) return (parseFloat(v) / 100) * total;
+    return parseFloat(String(v)) * scale;
+  };
+
+  const hex = (v: unknown, fallback = "000000") => {
+    const s = String(v ?? "").replace("#", "").trim();
+    return /^[0-9a-fA-F]{3,6}$/.test(s) ? `#${s}` : `#${fallback}`;
+  };
+
+  const ALIGN_CSS: Record<string, string> = { left: "left", center: "center", right: "right", justify: "justify" };
+  const VALIGN_FLEX: Record<string, string> = { top: "flex-start", middle: "center", bottom: "flex-end" };
+
+  let bg = "#111827";
+  for (const el of elements) {
+    if (el.type === "rect" && toPx(el.w, "w") >= W * 0.95 && toPx(el.h, "h") >= H * 0.90 && el.fill) {
+      bg = hex(el.fill);
+      break;
+    }
+  }
+
+  const parts: string[] = [
+    `<div style="position:relative;width:${W}px;height:${H}px;overflow:hidden;background:${bg};font-family:Calibri,Arial,sans-serif">`
+  ];
+
+  // Render non-text elements first, text on top to avoid being covered by rects
+  const sorted = [...elements].sort((a, b) => {
+    const order = (t: unknown) => t === "text" ? 1 : 0;
+    return order(a.type) - order(b.type);
+  });
+
+  for (const el of sorted) {
+    const x = Math.round(toPx(el.x ?? 0, "x"));
+    const y = Math.round(toPx(el.y ?? 0, "y"));
+    const w = Math.round(toPx(el.w ?? 1, "w"));
+    const h = Math.round(toPx(el.h ?? 0.5, "h"));
+    const fill = el.fill ? hex(el.fill) : "";
+    const trans = el.transparency ? `opacity:${1 - Number(el.transparency) / 100};` : "";
+    const pos = `position:absolute;left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
+
+    if (el.type === "rect") {
+      parts.push(`<div style="${pos}background:${fill || "transparent"};${trans}"></div>`);
+    } else if (el.type === "ellipse") {
+      parts.push(`<div style="${pos}background:${fill || "transparent"};border-radius:50%;${trans}"></div>`);
+    } else if (el.type === "line") {
+      parts.push(`<div style="${pos}background:${fill || hex(el.color, "888888")};"></div>`);
+    } else if (el.type === "text" && el.text != null) {
+      // pt → CSS px: 1pt = 1/72" × 96px/" = 1.333px
+      const fs = Math.round((Number(el.fontSize) || 14) * (96 / 72));
+      const fw = el.bold ? "bold" : "normal";
+      const fs2 = el.italic ? "italic" : "normal";
+      const color = hex(el.color, "000000");
+      const align = ALIGN_CSS[String(el.align ?? "left")] ?? "left";
+      const valign = VALIGN_FLEX[String(el.valign ?? "top")] ?? "flex-start";
+      const wrap = el.wrap === false ? "nowrap" : "normal";
+      const fillStyle = fill ? `background:${fill};` : "";
+      const text = String(el.text).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/\n/g, "<br>");
+      parts.push(
+        `<div style="${pos}${fillStyle}display:flex;align-items:${valign};justify-content:${align === "center" ? "center" : align === "right" ? "flex-end" : "flex-start"};overflow:hidden;white-space:${wrap};">` +
+        `<span style="font-size:${fs}px;font-weight:${fw};font-style:${fs2};color:${color};text-align:${align};line-height:1.25;word-break:break-word;">${text}</span>` +
+        `</div>`
+      );
+    }
+  }
+
+  parts.push("</div>");
+  return parts.join("");
 }

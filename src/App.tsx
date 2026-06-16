@@ -61,12 +61,12 @@ function loadSession(): PersistedSession | null {
 
 function saveSession(data: PersistedSession) {
   try {
-    // Omit html from slides before persisting — it's large and re-generated on refine
+    // Strip background_html (decorative layer, not needed for preview) but keep html
     const slim: PersistedSession = {
       ...data,
       generatedDoc: data.generatedDoc ? {
         ...data.generatedDoc,
-        slides: data.generatedDoc.slides?.map(({ html: _html, ...rest }) => rest),
+        slides: data.generatedDoc.slides?.map(({ background_html: _bg, ...rest }) => rest),
       } : null,
     };
     localStorage.setItem(SESSION_KEY, JSON.stringify(slim));
@@ -313,6 +313,7 @@ export default function App() {
     // Snapshot images/files BEFORE clearing state so runGenerate can use them
     pendingImagesRef.current = [...inputImages];
     pendingFilesRef.current = [...inputFiles];
+    const snapshotFileNames = inputFiles.map((f) => f.name);
     const attachments: ChatMessage["attachments"] = [
       ...inputFiles.map((f) => ({ type: "file" as const, name: f.name })),
       ...inputImages.map((img) => ({ type: "image" as const, name: img.name, preview: img.preview })),
@@ -330,10 +331,15 @@ export default function App() {
       const questions = await generateClarifyingQuestions(
         azureConfig,
         goal,
-        inputFiles.map((f) => f.name),
+        snapshotFileNames,
         abort.signal
       );
-      setClarifyingQuestions(questions);
+      if (questions.length > 0) {
+        setClarifyingQuestions(questions);
+      } else {
+        // LLM returned no questions — generate directly
+        await runGenerate(goal);
+      }
     } catch {
       // If questions fail, just generate directly
       setClarifyingQuestions([]);
@@ -382,6 +388,10 @@ export default function App() {
 
     const abort = new AbortController();
     abortRef.current = abort;
+
+    // Auto-abort after 3 minutes to prevent infinite hang
+    const timeoutId = setTimeout(() => abort.abort(), 3 * 60 * 1000);
+
     let accumulated = "";
     try {
       for await (const chunk of smartChatStream(
@@ -394,6 +404,7 @@ export default function App() {
         abort.signal
       )) {
         accumulated += chunk;
+        setStreamingText(accumulated);
       }
 
       // Detect if the LLM returned document JSON (with or without markdown code fences)
@@ -432,7 +443,9 @@ export default function App() {
         ]);
       }
     } finally {
+      clearTimeout(timeoutId);
       abortRef.current = null;
+      setStreamingText("");
       setIsRefining(false);
     }
   };
@@ -459,23 +472,23 @@ export default function App() {
 
   // ── Layout ─────────────────────────────────────────────────────────────────
   return (
-    <div className="flex h-screen flex-col bg-gray-950 text-gray-200 overflow-hidden">
+    <div className="flex h-screen flex-col bg-slate-50 text-gray-800 overflow-hidden">
       {/* Header */}
-      <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-800 px-5 py-3">
+      <header className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-5 py-3 shadow-sm">
         <div className="flex items-center gap-3">
-          <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-600 text-sm font-bold text-white">
+          <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 text-xs font-bold text-white shadow-sm">
             AI
           </div>
           <div>
-            <h1 className="text-sm font-semibold leading-none">ZenSpark</h1>
-            <p className="text-xs text-gray-500">Powered by Azure AI Foundry</p>
+            <h1 className="text-sm font-bold leading-none tracking-tight text-gray-900">ZenSpark</h1>
+            <p className="text-[11px] text-gray-400">Powered by Azure AI Foundry</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           {(isGenerating || isRefining) && (
             <button
               onClick={handleStop}
-              className="flex items-center gap-1.5 rounded-lg border border-red-700 px-3 py-1.5 text-xs text-red-400 hover:bg-red-900/20"
+              className="flex items-center gap-1.5 rounded-lg border border-red-200 bg-red-50 px-3 py-1.5 text-xs font-medium text-red-600 hover:bg-red-100 transition-colors"
             >
               <StopCircle size={13} />
               Stop
@@ -485,7 +498,7 @@ export default function App() {
             <button
               onClick={handleNewSession}
               title="Start a new session"
-              className="flex items-center gap-1.5 rounded-lg border border-gray-700 px-3 py-1.5 text-xs text-gray-400 hover:border-gray-500 hover:text-gray-200"
+              className="flex items-center gap-1.5 rounded-lg border border-gray-200 bg-white px-3 py-1.5 text-xs font-medium text-gray-600 hover:border-gray-300 hover:bg-gray-50 transition-colors shadow-sm"
             >
               <PlusCircle size={13} />
               New
@@ -493,14 +506,14 @@ export default function App() {
           )}
           <button
             onClick={() => setShowSettings(true)}
-            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+            className={`flex items-center gap-1.5 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors shadow-sm ${
               azureConfig
-                ? "border-green-800 text-green-400 hover:border-green-600"
-                : "border-amber-600 text-amber-400 hover:border-amber-500"
+                ? "border-green-200 bg-green-50 text-green-700 hover:bg-green-100"
+                : "border-amber-200 bg-amber-50 text-amber-700 hover:bg-amber-100"
             }`}
           >
             {azureConfig ? (
-              <><span className="h-1.5 w-1.5 rounded-full bg-green-400" /><Settings size={13} /> Connected</>
+              <><span className="h-1.5 w-1.5 rounded-full bg-green-500" /><Settings size={13} /> Connected</>
             ) : (
               <><Settings size={13} /> Configure Azure</>
             )}
@@ -510,17 +523,17 @@ export default function App() {
 
       {/* Progress bar — visible whenever generating or refining */}
       {(isGenerating || isRefining) && (
-        <div className="relative h-1 w-full flex-shrink-0 overflow-hidden bg-gray-800">
+        <div className="relative h-1 w-full flex-shrink-0 overflow-hidden bg-gray-100">
           <div className="absolute inset-y-0 w-1/3 animate-[shimmer_1.2s_linear_infinite] bg-gradient-to-r from-transparent via-blue-500 to-transparent" />
         </div>
       )}
 
       {/* Error banner */}
       {error && (
-        <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-800 bg-red-950/40 px-3 py-2 text-xs text-red-300">
-          <AlertCircle size={14} className="mt-0.5 flex-shrink-0" />
+        <div className="mx-4 mt-3 flex items-start gap-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs text-red-700 shadow-sm">
+          <AlertCircle size={14} className="mt-0.5 flex-shrink-0 text-red-500" />
           <span className="flex-1">{error}</span>
-          <button onClick={() => setError(null)} className="flex-shrink-0 hover:text-red-200">
+          <button onClick={() => setError(null)} className="flex-shrink-0 text-red-400 hover:text-red-600">
             <X size={13} />
           </button>
         </div>
@@ -535,6 +548,7 @@ export default function App() {
             input={chatInput}
             isGenerating={isGenerating}
             isRefining={isRefining}
+            streamingContent={streamingText}
             hasDoc={!!generatedDoc}
             files={inputFiles}
             images={inputImages}
@@ -558,21 +572,21 @@ export default function App() {
         {/* ── Resize handle ─────────────────────────────────────── */}
         <div
           onMouseDown={handleResizeMouseDown}
-          className="group flex w-1 flex-shrink-0 cursor-ew-resize items-center justify-center bg-gray-800 hover:bg-blue-600 transition-colors"
+          className="group flex w-1.5 flex-shrink-0 cursor-ew-resize items-center justify-center bg-gray-200 hover:bg-blue-500 transition-colors"
           title="Drag to resize"
         />
 
         {/* ── RIGHT: Slide Preview + Downloads ──────────────────── */}
         <aside
-          className="flex flex-shrink-0 flex-col overflow-hidden"
+          className="flex flex-shrink-0 flex-col overflow-hidden bg-white shadow-[-2px_0_8px_rgba(0,0,0,0.06)]"
           style={{ width: rightWidth }}
         >
           {/* Header */}
-          <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-800 px-4 py-2.5">
-            <p className="text-xs font-semibold uppercase tracking-wider text-gray-500">Slide Preview</p>
+          <div className="flex flex-shrink-0 items-center justify-between border-b border-gray-200 bg-white px-4 py-3 shadow-sm">
+            <p className="text-xs font-semibold uppercase tracking-widest text-gray-400">Slide Preview</p>
             <div className="flex items-center gap-2">
               {generatedDoc && (
-                <span className="rounded-full bg-blue-900/40 px-2 py-0.5 text-xs text-blue-400">
+                <span className="rounded-full bg-blue-100 px-2.5 py-0.5 text-[11px] font-medium text-blue-700">
                   {(generatedDoc.slides ?? generatedDoc.sections ?? []).length}{" "}
                   {generatedDoc.document_type === "pptx" ? "slides" : "sections"}
                 </span>
@@ -581,7 +595,7 @@ export default function App() {
           </div>
 
           {/* Slide viewer — fills remaining height */}
-          <div className="flex min-h-0 flex-1 flex-col px-3 py-3">
+          <div className="flex min-h-0 flex-1 flex-col bg-slate-50 px-3 py-3">
             {generatedDoc?.slides?.some((s) => s.html) ? (
               <HTMLSlidePreview slides={generatedDoc.slides ?? []} />
             ) : (
@@ -597,12 +611,13 @@ export default function App() {
 
           {/* Download section — pinned at bottom */}
           {generatedDoc && (
-            <div className="flex-shrink-0 border-t border-gray-800 px-4 py-3">
+            <div className="flex-shrink-0 border-t border-gray-200 bg-white px-4 py-3">
               <DownloadButtons
                 doc={generatedDoc}
                 images={inputImages}
                 outputFormat={outputFormat}
                 tokenUsage={tokenUsage}
+                azureConfig={azureConfig}
               />
             </div>
           )}

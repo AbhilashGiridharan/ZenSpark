@@ -61,14 +61,14 @@ export default function ScreenshotPaste({
         ref={dropRef}
         onDragOver={(e) => e.preventDefault()}
         onDrop={handleDrop}
-        className="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-700 p-3 transition-colors hover:border-gray-500 hover:bg-gray-800/20"
+        className="relative flex cursor-pointer flex-col items-center justify-center rounded-lg border-2 border-dashed border-gray-300 p-3 transition-colors hover:border-gray-400 hover:bg-gray-100/20"
       >
         <label className="flex w-full cursor-pointer flex-col items-center gap-1">
           <ImageIcon size={18} className="text-gray-500" />
-          <span className="text-center text-xs text-gray-400">
+          <span className="text-center text-xs text-gray-500">
             Paste screenshot (Ctrl+V) or drag & drop
           </span>
-          <span className="text-center text-xs text-gray-600">
+          <span className="text-center text-xs text-gray-400">
             Click to upload · PNG, JPEG, WebP
           </span>
           <input
@@ -85,7 +85,7 @@ export default function ScreenshotPaste({
       {images.length > 0 && (
         <div className="mt-2 grid grid-cols-2 gap-2">
           {images.map((img) => (
-            <div key={img.id} className="group relative rounded-md border border-gray-700 bg-gray-800/50 overflow-hidden">
+            <div key={img.id} className="group relative rounded-md border border-gray-300 bg-gray-100/50 overflow-hidden">
               {/* Thumbnail */}
               <div className="relative">
                 <img
@@ -95,11 +95,11 @@ export default function ScreenshotPaste({
                 />
                 <button
                   onClick={() => onRemove(img.id)}
-                  className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-gray-300 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
+                  className="absolute right-1 top-1 rounded-full bg-black/60 p-0.5 text-gray-700 opacity-0 transition-opacity group-hover:opacity-100 hover:text-red-400"
                 >
                   <X size={11} />
                 </button>
-                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-xs text-gray-300">
+                <span className="absolute bottom-1 left-1 rounded bg-black/60 px-1 text-xs text-gray-700">
                   #{images.indexOf(img)}
                 </span>
               </div>
@@ -109,7 +109,7 @@ export default function ScreenshotPaste({
                 value={img.caption}
                 onChange={(e) => onCaptionChange(img.id, e.target.value)}
                 placeholder="Add caption…"
-                className="w-full border-t border-gray-700 bg-transparent px-2 py-1 text-xs text-gray-400 placeholder-gray-600 focus:outline-none focus:ring-0"
+                className="w-full border-t border-gray-300 bg-transparent px-2 py-1 text-xs text-gray-500 placeholder-gray-400 focus:outline-none focus:ring-0"
               />
             </div>
           ))}

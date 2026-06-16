@@ -1,8 +1,9 @@
 import * as pdfjsLib from "pdfjs-dist";
+import PdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import type { InputFile, InputImage } from "../types/document";
 
-// Use CDN worker for PDF.js to avoid bundling the large worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
+// Use the locally-bundled worker — avoids CDN version mismatch (pdf.js v4 uses .mjs)
+pdfjsLib.GlobalWorkerOptions.workerSrc = PdfWorkerUrl;
 
 // ─── Read file as ArrayBuffer ─────────────────────────────────────────────────
 function readAsArrayBuffer(file: File): Promise<ArrayBuffer> {
