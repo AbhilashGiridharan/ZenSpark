@@ -197,11 +197,87 @@ def render_pptx_elements(prs: "Presentation", doc: dict) -> None:
 
 
 # ─── Per-slide pptx_elements renderer (used by the main endpoint) ─────────────
+def _luminance(hex_str: str) -> float:
+    """Return perceived luminance 0.0 (black) → 1.0 (white) for a hex color."""
+    h = str(hex_str).lstrip("#").strip()
+    if len(h) != 6: return 0.5
+    r, g, b = int(h[0:2],16)/255, int(h[2:4],16)/255, int(h[4:6],16)/255
+    return 0.2126*r + 0.7152*g + 0.0722*b
+
+
+def _remap_elements_to_theme(elements: list, theme_colors: dict) -> list:
+    """
+    Remap arbitrary LLM-chosen colors in pptx_elements to the selected theme palette.
+    Only applied when the theme explicitly defines a remap strategy (e.g. zensar_white).
+    """
+    remap = theme_colors.get("_remap")  # only present for themes that enforce colors
+    if not remap:
+        return elements
+
+    bg_hex    = theme_colors.get("background", "ffffff")
+    header_bg = theme_colors.get("headerBg", "003A70")
+    card_fill = theme_colors.get("cardFill", "F9FDFC")
+    body_text = theme_colors.get("bodyText", "1A1F2B")
+    accent    = theme_colors.get("accent2", "9A1F1F")   # label color
+    muted     = theme_colors.get("mutedText", "525A6B")
+    positive  = theme_colors.get("positive", "1F6A3A")
+
+    remapped = []
+    for el in elements:
+        el = dict(el)  # shallow copy so we don't mutate original
+        fill = el.get("fill", "")
+        color = el.get("color", "")
+
+        if el.get("type") in ("rect", "ellipse") and fill:
+            lum = _luminance(fill)
+            if lum < 0.12:
+                # Very dark fill (near-black) → white slide background
+                el["fill"] = bg_hex
+            elif lum < 0.35:
+                # Dark mid-tone → use theme header/primary color
+                el["fill"] = header_bg
+            elif lum > 0.88:
+                # Near-white fill → card background
+                el["fill"] = card_fill
+
+        if el.get("type") == "text" and color:
+            lum = _luminance(color)
+            if lum > 0.85:
+                # Near-white text — keep only if on a dark background (handled by context)
+                pass  # leave white text on header bars alone
+            elif lum < 0.08:
+                # Near-black text → body text color
+                el["color"] = body_text
+            # Bright saturated colors: detect approximate hue buckets
+            else:
+                h = str(color).lstrip("#")
+                if len(h) == 6:
+                    r, g, b = int(h[0:2],16), int(h[2:4],16), int(h[4:6],16)
+                    # Bright blues → primary navy
+                    if b > 150 and b > r*1.5 and b > g*1.2:
+                        el["color"] = header_bg
+                    # Greens → positive
+                    elif g > 150 and g > r*1.3 and g > b*1.3:
+                        el["color"] = positive
+                    # Reds/oranges → accent label
+                    elif r > 150 and r > g*1.4 and r > b*1.4:
+                        el["color"] = accent
+                    # Mid-grey → muted text
+                    elif 80 < r < 180 and abs(r-g) < 30 and abs(g-b) < 30:
+                        el["color"] = muted
+
+        remapped.append(el)
+    return remapped
+
+
 def _render_single_slide_elements(slide: "Slide", elements: list, theme_colors: dict) -> None:
     """Render one slide's pptx_elements list onto an already-added blank slide."""
     from pptx.util import Inches, Pt
     from pptx.dml.color import RGBColor
     from pptx.enum.text import PP_ALIGN, MSO_ANCHOR
+
+    # Remap colors to match selected theme (only for themes with _remap=True, e.g. zensar_white)
+    elements = _remap_elements_to_theme(elements, theme_colors)
 
     SRC_W   = 10.0
     SRC_H   = 7.5
@@ -268,6 +344,38 @@ def _render_single_slide_elements(slide: "Slide", elements: list, theme_colors: 
                 run.font.italic = bool(el.get("italic",False))
                 run.font.color.rgb = to_rgb(el.get("color","000000"))
                 if el.get("fontFace"): run.font.name = str(el["fontFace"])
+
+
+def _add_zensar_logo(slide: "Slide") -> None:
+    """Stamp the Zensar logo at the standard top-right position on every slide."""
+    import os
+    from pptx.util import Inches
+    logo_path = os.path.join(os.path.dirname(__file__), "public", "zensar_logo.png")
+    if not os.path.exists(logo_path):
+        return
+    # Logo position extracted from actual Zensar template:
+    # right edge ~13.13" (11.677 + 1.456), top 0.209" — shift slightly for 13.33" slide
+    slide.shapes.add_picture(logo_path, Inches(11.6), Inches(0.18), Inches(1.56), Inches(0.24))
+
+
+def _add_footer(slide: "Slide", slide_num: int, total: int, title: str) -> None:
+    """Add slide number + title footer if not already present in pptx_elements."""
+    from pptx.util import Inches, Pt
+    from pptx.dml.color import RGBColor
+    from pptx.enum.text import PP_ALIGN
+    FOOTER_Y = 7.25
+    # Title label (left)
+    tb_left = slide.shapes.add_textbox(Inches(0.2), Inches(FOOTER_Y), Inches(8.0), Inches(0.22))
+    tf = tb_left.text_frame
+    p = tf.paragraphs[0]; run = p.add_run()
+    run.text = title[:80]
+    run.font.size = Pt(8); run.font.color.rgb = RGBColor(0xAA, 0xAA, 0xAA)
+    # Slide N of TOTAL (right-aligned)
+    tb_right = slide.shapes.add_textbox(Inches(8.5), Inches(FOOTER_Y), Inches(1.5), Inches(0.22))
+    tf2 = tb_right.text_frame
+    p2 = tf2.paragraphs[0]; p2.alignment = PP_ALIGN.RIGHT; run2 = p2.add_run()
+    run2.text = f"Slide {slide_num} of {total}"
+    run2.font.size = Pt(8); run2.font.color.rgb = RGBColor(0xAA, 0xAA, 0xAA)
 
 
 def render_structured_slide(slide: "Slide", slide_data: dict, theme_colors: dict) -> None:
@@ -415,6 +523,8 @@ THEME_COLORS: dict[str, dict] = {
     "green_growth":    {"headerBg":"14532d","accent":"22c55e","accent2":"16a34a","bodyText":"1e293b","background":"ffffff","headerText":"ffffff"},
     "red_bold":        {"headerBg":"7f1d1d","accent":"ef4444","accent2":"f97316","bodyText":"1e293b","background":"ffffff","headerText":"ffffff"},
     "purple_creative": {"headerBg":"3b0764","accent":"a855f7","accent2":"ec4899","bodyText":"1e293b","background":"ffffff","headerText":"ffffff"},
+    # Zensar brand: white bg, navy #003A70, crimson labels #9A1F1F, steel gray #525A6B, forest green #1F6A3A
+    "zensar_white":    {"headerBg":"003A70","accent":"003A70","accent2":"9A1F1F","bodyText":"1A1F2B","background":"ffffff","headerText":"ffffff","cardFill":"F9FDFC","labelColor":"9A1F1F","mutedText":"525A6B","positive":"1F6A3A","_remap":True},
     "default":         {"headerBg":"1e293b","accent":"3b82f6","accent2":"0ea5e9","bodyText":"1e293b","background":"ffffff","headerText":"ffffff"},
 }
 
@@ -492,8 +602,9 @@ def _is_services(ep: str) -> bool:
     return "services.ai.azure.com" in ep.lower()
 
 
-def _is_claude(deployment: str) -> bool:
-    return deployment.lower().startswith("claude-")
+def _is_openai_model(deployment: str) -> bool:
+    d = deployment.lower()
+    return d.startswith("gpt-") or d.startswith("o1") or d.startswith("o3") or d.startswith("o4") or d.startswith("codex")
 
 
 # ─── System prompt for code generation ────────────────────────────────────────
@@ -571,14 +682,21 @@ def _call_llm_messages(system: str, user_msg: str, cfg: AzureConfigPayload,
         except ImportError:
             raise RuntimeError("openai package not installed. Run: pip install openai")
         base = _strip_to_base(cfg.endpoint)
-        base_url = (
-            f"{base}/openai/deployments/{cfg.deploymentName}"
-            if _is_azure_openai(cfg.endpoint) else f"{base}/v1"
-        )
+        if _is_azure_openai(cfg.endpoint):
+            base_url = f"{base}/openai/deployments/{cfg.deploymentName}"
+        elif _is_services(cfg.endpoint) and _is_openai_model(cfg.deploymentName):
+            # Foundry unified endpoint + GPT/o-series → Azure OpenAI path
+            base_url = f"{base}/openai/deployments/{cfg.deploymentName}"
+        elif _is_services(cfg.endpoint):
+            # Foundry unified endpoint + non-OpenAI (Llama, Phi…) → AI Inference path
+            base_url = f"{base}/models"
+        else:
+            base_url = f"{base}/v1"
+        api_version = cfg.apiVersion or ("2025-04-01-preview" if _is_services(cfg.endpoint) else None)
         kwargs: dict = {"api_key": cfg.apiKey, "base_url": base_url,
                         "default_headers": {"api-key": cfg.apiKey}}
-        if cfg.apiVersion:
-            kwargs["default_query"] = {"api-version": cfg.apiVersion}
+        if api_version:
+            kwargs["default_query"] = {"api-version": api_version}
         client = OpenAI(**kwargs)
         response = client.chat.completions.create(
             model=cfg.deploymentName,
@@ -752,9 +870,21 @@ async def generate_pptx(req: GeneratePptxRequest):
             prs.core_properties.title  = doc.get("title", "Presentation")
             prs.core_properties.author = doc.get("author", "ZenSpark")
             theme_colors = get_theme_colors(doc)
+            theme_name = str(doc.get("theme", "")).lower().replace(" ", "_")
+            total_slides = len(slides)
+            doc_title = doc.get("title", "Presentation")
             for slide_data in slides:
                 slide = prs.slides.add_slide(prs.slide_layouts[6])
-                _render_single_slide_elements(slide, slide_data.get("pptx_elements", []), theme_colors)
+                elements = slide_data.get("pptx_elements", [])
+                _render_single_slide_elements(slide, elements, theme_colors)
+                # Auto-inject Zensar logo top-right when using zensar_white theme
+                if theme_name == "zensar_white":
+                    _add_zensar_logo(slide)
+                # Add footer if LLM didn't include "Slide N of" text already
+                slide_num = slide_data.get("slide_number", slides.index(slide_data) + 1)
+                has_footer = any("of" in str(el.get("text","")).lower() and "slide" in str(el.get("text","")).lower() for el in elements)
+                if not has_footer:
+                    _add_footer(slide, slide_num, total_slides, doc_title)
                 if slide_data.get("speaker_notes"):
                     slide.notes_slide.notes_text_frame.text = str(slide_data["speaker_notes"])
             prs.save(out_path)

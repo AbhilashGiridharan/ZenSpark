@@ -14,7 +14,8 @@ export type ThemeOption =
   | "corporate_blue"
   | "dark_tech"
   | "minimal_white"
-  | "green_growth";
+  | "green_growth"
+  | "zensar_white";
 
 export type OutputFormat = "pptx" | "docx" | "both";
 

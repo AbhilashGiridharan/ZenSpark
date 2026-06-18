@@ -21,18 +21,24 @@ IMPORTANT: Do NOT include html or background_html fields — these are generated
    - Each element has a "type": "rect", "ellipse", "text", or "line"
    - "rect" and "ellipse": must have "fill" (hex color WITHOUT #, e.g. "1A1A2E"). Optional "transparency" (0-100).
    - "text": must have "text" (string), "fontSize" (number), "color" (hex WITHOUT #). Optional: "bold", "italic", "fontFace", "align" ("left"/"center"/"right"), "valign" ("top"/"middle"/"bottom"), "wrap" (true/false).
+   - VISUAL DESIGN — use your own professional design judgment:
+     • You are acting as a presentation designer. Design each slide to be visually clear and impactful.
+     • CRITICAL: The Output Settings section specifies a Theme and Brand. If a specific brand/color palette is listed, it is MANDATORY — use ONLY those colors in pptx_elements fills and text colors. Do not substitute with your own color preferences.
+     • If no brand palette is specified, use your own color choices. Ensure readability (body text ≥13pt), strong visual hierarchy, and variety across slides.
+     • Do NOT homogenize every slide — use the full range of layout types (stats, quote, two_column, section_divider, etc.) to keep the deck visually engaging.
    - Draw background rects FIRST (lowest z-order), then decorative shapes, then text boxes on top.
-   - Match the hex colors from your HTML design exactly. Use the same font sizes (convert px to pt: divide by 1.33).
+   - Font sizes are in pt. Convert from px if needed: pt = px ÷ 1.33.
    - For multi-line bullet lists: create one "text" element per bullet OR a single text element with newlines ("\\n") between items.
    - For tables: create header rect + header text, then alternating row rects + row text elements.
    - Convert ALL readable content (titles, bullets, table cells, stat numbers) into "text" type elements so content is editable.
-   Example pptx_elements for a slide with a dark header bar and two bullet points:
+   Example pptx_elements for a slide with a dark header bar, accent line, and two bullet points:
    [
-     {"type":"rect","x":0,"y":0,"w":"100%","h":0.72,"fill":"0D47A1"},
-     {"type":"text","x":0.25,"y":0,"w":9,"h":0.72,"text":"My Slide Title","fontSize":20,"bold":true,"color":"FFFFFF","fontFace":"Calibri","valign":"middle"},
-     {"type":"rect","x":0.38,"y":0.88,"w":9.3,"h":0.75,"fill":"DBEAFE"},
-     {"type":"text","x":0.55,"y":0.88,"w":9.0,"h":0.75,"text":"🔵 First bullet point here","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"},
-     {"type":"text","x":0.55,"y":1.7,"w":9.0,"h":0.75,"text":"🟢 Second bullet point here","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"}
+     {"type":"rect","x":0,"y":0,"w":"100%","h":1.1,"fill":"0D47A1"},
+     {"type":"rect","x":0,"y":1.05,"w":"100%","h":0.05,"fill":"42A5F5"},
+     {"type":"text","x":0.3,"y":0.1,"w":9.4,"h":0.9,"text":"My Slide Title","fontSize":28,"bold":true,"color":"FFFFFF","fontFace":"Calibri","valign":"middle"},
+     {"type":"text","x":0.4,"y":1.25,"w":9.2,"h":0.5,"text":"🔵 First bullet point — concise, scannable, substantive","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"},
+     {"type":"rect","x":0.3,"y":1.85,"w":9.4,"h":0.45,"fill":"EFF6FF","transparency":20},
+     {"type":"text","x":0.4,"y":1.85,"w":9.2,"h":0.45,"text":"🟢 Second bullet with a highlighted background","fontSize":16,"color":"1A2744","fontFace":"Calibri","valign":"middle"}
    ]
 
 For each slide you MUST generate pptx_elements. Do NOT include html or background_html \u2014 these are generated client-side.
@@ -40,7 +46,7 @@ For each slide you MUST generate pptx_elements. Do NOT include html or backgroun
 Schema:
   "title": "string",
   "document_type": "pptx" | "docx" | "both",
-  "theme": "corporate_blue" | "dark_tech" | "minimal_white" | "green_growth",
+  "theme": "corporate_blue" | "dark_tech" | "minimal_white" | "green_growth" | "zensar_white",
   "author": "string",
   "date": "YYYY-MM-DD",
   "slides": [
@@ -162,12 +168,14 @@ Include slides covering:
 Tone: concise, data-backed, strategic, non-technical. Maximum 3 bullets per slide.
 ${JSON_SCHEMA}`,
 
-  custom: `You are an expert presentation and document specialist.
+  custom: `You are an expert presentation designer and content strategist.
 Read the user's goal and any uploaded files carefully. Infer the audience, purpose, and best structure from the content.
-Generate a presentation or document that best serves the user's stated intent.
+Generate a visually compelling presentation or document that best serves the user's stated intent.
+
+Design philosophy: make each slide visually distinct and impactful. Use your full creative design judgment — choose colors, typography, layout variety, and visual hierarchy that communicate the content clearly and professionally. A great presentation is not a wall of text — vary layouts, use stat cards, callout boxes, section dividers, and visual accents to keep the reader engaged.
+
 IMPORTANT: If the user asks for "a slide", "one slide", "convert this image", or references a single item — generate exactly 1 slide, not more.
 If the Output Settings specify a target slide count, follow it exactly — do not generate more or fewer slides.
-Choose the most appropriate layouts and level of detail based on the content.
 Tone: professional, clear, and tailored to the inferred audience.
 CRITICAL: Your entire response must be a single raw JSON object. Do NOT wrap it in markdown code fences. Do NOT include any text before or after the JSON. Start your response with { and end with }.
 ${JSON_SCHEMA}`,
@@ -188,10 +196,11 @@ export const THEME_LABELS: Record<ThemeOption, string> = {
   dark_tech: "Dark Tech",
   minimal_white: "Minimal White",
   green_growth: "Green Growth",
+  zensar_white: "Zensar (White)",
 };
 
-export const SLIDE_COUNT_OPTIONS = [8, 10, 12, 16, 20];
-export const DEFAULT_SLIDE_COUNT = 12;
+export const SLIDE_COUNT_OPTIONS = [8, 10, 12, 16, 20, 25];
+export const DEFAULT_SLIDE_COUNT = 15;
 
 export const OUTPUT_FORMAT_LABELS: Record<OutputFormat, string> = {
   pptx: "PowerPoint (.pptx)",
@@ -228,6 +237,25 @@ export function buildUserPrompt(
     : outputFormat; // use passed value as fallback
   lines.push(`- Document type: ${inferredFormat}`);
   lines.push(`- Theme: ${theme}`);
+  // Zensar brand guidance — MANDATORY when zensar_white is selected
+  if (theme === "zensar_white") {
+    lines.push(`- Brand: Zensar Technologies. The following color palette is MANDATORY — do not deviate:`);
+    lines.push(`    Slide background: #FFFFFF (white) — every slide must have a white background`);
+    lines.push(`    Header bars / primary filled shapes: #003A70 (Zensar navy)`);
+    lines.push(`    Section labels / sub-headings: #9A1F1F (Zensar crimson)`);
+    lines.push(`    All body text on white: #1A1F2B (dark navy)`);
+    lines.push(`    Muted sub-labels / secondary text: #525A6B (steel gray)`);
+    lines.push(`    Positive/growth values: #1F6A3A (forest green)`);
+    lines.push(`    Card / panel backgrounds: #F9FDFC (very light off-white)`);
+    lines.push(`    Accent line / divider: #D0D9E6`);
+    lines.push(`    Font face: Calibri`);
+    lines.push(`  STRICT RULES for Zensar theme:`);
+    lines.push(`    - NO dark backgrounds. The slide background MUST be white (#FFFFFF) or very light (#F9FDFC).`);
+    lines.push(`    - Dark fills are ONLY allowed for header bars (top strip) — color MUST be #003A70.`);
+    lines.push(`    - All text on white background MUST use #1A1F2B, #525A6B, #9A1F1F, #003A70, or #1F6A3A.`);
+    lines.push(`    - Do NOT use any blue shades other than #003A70 for fills, or #003A70/#525A6B for text.`);
+    lines.push(`    - The Zensar logo will be placed top-right automatically — do NOT include it in pptx_elements.`);
+  }
   // Slide count: respect explicit numbers, singular intent, or let LLM decide
   const mentionedCount = goal ? goal.match(/(\d+)\s*slide/i) : null;
   const singularSlide = goal ? /\b(a|one|single|1)\s+slide\b/i.test(goal) || /\bconvert\b.*\bimage\b/i.test(goal) || /\bthis\s+(image|photo|screenshot)\b/i.test(goal) : false;
@@ -236,7 +264,7 @@ export function buildUserPrompt(
   } else if (singularSlide) {
     lines.push(`- Target slide count: 1 slide (user wants a single slide)`);
   } else {
-    lines.push(`- Slide count: choose the most appropriate number based on content complexity (typical range 8-20, do not pad with filler slides)`);
+    lines.push(`- Slide count: choose the most appropriate number based on content complexity. For detailed documents (RFPs, proposals, technical specs) aim for 15-25 slides. For simple topics use 8-12. Do not pad with filler.`);
   }
   if (imageCount > 0) {
     lines.push(`- Images provided: ${imageCount} screenshot(s) available (use image_index 0-${imageCount - 1} to embed them)`);

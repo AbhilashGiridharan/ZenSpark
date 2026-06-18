@@ -74,6 +74,19 @@ const THEMES: Record<ThemeOption, ThemeColors> = {
     tableRowBg: "ECFDF5",
     divider: "BBF7D0",
   },
+  zensar_white: {
+    background: "FFFFFF",
+    headerBg: "003A70",
+    headerText: "FFFFFF",
+    bodyText: "1A1F2B",
+    accent: "003A70",
+    accent2: "9A1F1F",
+    surface: "F9FDFC",
+    tableHeaderBg: "003A70",
+    tableHeaderText: "FFFFFF",
+    tableRowBg: "F9FDFC",
+    divider: "D0D9E6",
+  },
 };
 
 type PptxSlide = ReturnType<InstanceType<typeof pptxgen>["addSlide"]>;

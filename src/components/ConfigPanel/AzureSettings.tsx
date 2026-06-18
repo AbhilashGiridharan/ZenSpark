@@ -5,6 +5,8 @@ import { testConnection } from "../../services/azureFoundry";
 
 const SESSION_KEY = "ai_doc_azure_config";
 const API_VERSIONS = [
+  "2025-04-01-preview",
+  "2025-01-01-preview",
   "2024-12-01-preview",
   "2024-08-01-preview",
   "2024-05-01-preview",
@@ -31,7 +33,11 @@ const INPUT_CLS = "w-full rounded-lg border border-gray-300 bg-gray-100/60 px-3 
 
 function friendlyError(raw: string): string {
   if (raw.includes("404") || raw.toLowerCase().includes("deployment") || raw.toLowerCase().includes("does not exist")) {
-    return "404 — Deployment not found. The \"Model Deployment Name\" must exactly match the name you gave your deployment in Azure AI Foundry (e.g. my-claude-deployment). It is NOT the model name.";
+    const isFoundry = raw.toLowerCase().includes("services.ai.azure.com") ||
+      (typeof window !== "undefined" && window.location.href.includes("services.ai"));
+    return isFoundry
+      ? "404 — Model not found. For Foundry (services.ai.azure.com) endpoints, the Deployment Name must be the exact model ID, e.g. \"gpt-4.1\" or \"claude-sonnet-4-6\". Also try a newer API version (2025-04-01-preview)."
+      : "404 — Deployment not found. The \"Model Deployment Name\" must exactly match the name you gave your deployment in Azure AI Foundry (e.g. my-claude-deployment). It is NOT the model name.";
   }
   if (raw.includes("401") || raw.toLowerCase().includes("unauthorized") || raw.toLowerCase().includes("api key")) {
     return "401 — Invalid API Key. Copy the key from Azure AI Foundry → your project → Settings → API Keys.";
@@ -75,12 +81,16 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
     : isServicesEndpoint ? "Azure AI Foundry — Chat Completions"
     : form.endpoint ? "Azure AI Foundry (Serverless)"
     : "";
+  const isOpenAIModel = /^(gpt-|o1|o3|o4|codex)/i.test(form.deploymentName);
+  const apiVer = form.apiVersion || (isServicesEndpoint ? "2025-04-01-preview" : "");
   const previewUrl = form.endpoint && form.deploymentName
-    ? isAzureOpenAI
-      ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${form.apiVersion ? `?api-version=${form.apiVersion}` : ""}`
+    ? isAzureOpenAI || (isServicesEndpoint && isOpenAIModel)
+      ? `${form.endpoint.replace(/\/$/, "")}/openai/deployments/${form.deploymentName}/chat/completions${apiVer ? `?api-version=${apiVer}` : ""}`
       : isServicesEndpoint && isClaudeDeploy
         ? `${form.endpoint.replace(/\/+$/, "")}/anthropic/v1/messages  (x-api-key + anthropic-version: 2023-06-01)`
-        : `${form.endpoint.replace(/\/$/, "")}/v1/chat/completions  (model: ${form.deploymentName})`
+        : isServicesEndpoint
+          ? `${form.endpoint.replace(/\/$/, "")}/models/chat/completions?api-version=${apiVer}  (model: ${form.deploymentName})`
+          : `${form.endpoint.replace(/\/$/, "")}/v1/chat/completions  (model: ${form.deploymentName})`
     : "";
 
   const copyUrl = () => {
@@ -177,13 +187,19 @@ export default function AzureSettings({ initialConfig, onSave, onClose }: Props)
             <div className="grid grid-cols-2 gap-4">
               <Field
                 label="Deployment Name"
-                hint='The name YOU gave the deployment — not the model name'
+                hint={
+                  isAzureOpenAI
+                    ? 'Azure OpenAI: the name you gave your deployment (NOT the model name)'
+                    : isServicesEndpoint
+                      ? 'Foundry: use the exact model name, e.g. gpt-4.1 or claude-sonnet-4-6'
+                      : 'The deployment or model name'
+                }
               >
                 <input
                   type="text"
                   value={form.deploymentName}
                   onChange={(e) => set("deploymentName", e.target.value)}
-                  placeholder="e.g. my-claude-deployment"
+                  placeholder={isAzureOpenAI ? "e.g. my-gpt4-deployment" : isServicesEndpoint ? "e.g. gpt-4.1" : "e.g. my-deployment"}
                   className={INPUT_CLS}
                 />
               </Field>

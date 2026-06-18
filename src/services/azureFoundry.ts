@@ -32,15 +32,35 @@ function stripToBase(endpoint: string): string {
   return base;
 }
 
+function isOpenAIModel(model: string): boolean {
+  const m = model.toLowerCase();
+  return m.startsWith("gpt-") || m.startsWith("o1") || m.startsWith("o3") || m.startsWith("o4") || m.startsWith("codex");
+}
+
 // ─── Client factory (OpenAI-compatible endpoints only) ───────────────────────
 export function createAzureClient(config: AzureConfig): OpenAI {
   const base = stripToBase(config.endpoint);
+
+  let baseURL: string;
+  if (isAzureOpenAI(config.endpoint)) {
+    // Classic Azure OpenAI Service
+    baseURL = `${base}/openai/deployments/${config.deploymentName}`;
+  } else if (isServicesEndpoint(config.endpoint) && isOpenAIModel(config.deploymentName)) {
+    // Foundry unified endpoint + GPT/o-series → Azure OpenAI path
+    baseURL = `${base}/openai/deployments/${config.deploymentName}`;
+  } else if (isServicesEndpoint(config.endpoint)) {
+    // Foundry unified endpoint + non-OpenAI model (Llama, Phi…) → AI Inference path
+    baseURL = `${base}/models`;
+  } else {
+    baseURL = `${base}/v1`;
+  }
+
+  const apiVersion = config.apiVersion || (isServicesEndpoint(config.endpoint) ? "2025-04-01-preview" : undefined);
+
   return new OpenAI({
     apiKey: config.apiKey,
-    baseURL: isAzureOpenAI(config.endpoint)
-      ? `${base}/openai/deployments/${config.deploymentName}`
-      : `${base}/v1`,
-    ...(config.apiVersion ? { defaultQuery: { "api-version": config.apiVersion } } : {}),
+    baseURL,
+    ...(apiVersion ? { defaultQuery: { "api-version": apiVersion } } : {}),
     defaultHeaders: { "api-key": config.apiKey },
     dangerouslyAllowBrowser: true,
   });
@@ -545,9 +565,20 @@ function validateAndNormalize(parsed: DocumentOutput): DocumentOutput {
         title: s.title ?? `Slide ${i + 1}`,
         speaker_notes: s.speaker_notes ?? "",
       };
-      // Generate html from pptx_elements if the LLM omitted it (large decks get truncated)
-      if (!slide.html && slide.pptx_elements && slide.pptx_elements.length > 0) {
+      // Always regenerate html from pptx_elements (never trust LLM-generated html)
+      if (slide.pptx_elements && (slide.pptx_elements as unknown[]).length > 0) {
         slide.html = pptxElementsToHtml(slide.pptx_elements as unknown as Array<Record<string, unknown>>);
+      } else if (!slide.html) {
+        // Fallback: simple white slide with title + content text
+        const titleText = String(slide.title ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        const bodyText = String(
+          (slide as Record<string, unknown>).subtitle ??
+          ((slide as Record<string, unknown>).bullets as string[] | undefined)?.join(" · ") ??
+          (slide as Record<string, unknown>).content ?? ""
+        ).replace(/&/g, "&amp;").replace(/</g, "&lt;");
+        slide.html = `<div style="position:relative;width:960px;height:540px;background:#1a1a2e;font-family:Calibri,Arial,sans-serif;display:flex;flex-direction:column;justify-content:center;padding:60px">` +
+          `<div style="color:#ffffff;font-size:36px;font-weight:bold;margin-bottom:20px">${titleText}</div>` +
+          `<div style="color:#ccddff;font-size:20px;line-height:1.5">${bodyText}</div></div>`;
       }
       return slide;
     });
